@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Play, Search, Bell, Mail, Star, User, LogIn } from 'lucide-react';
+import { Play, Search, Bell, Mail, Star, User, LogIn, PlusCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
 
 const navItems = [
@@ -47,6 +47,17 @@ export function LeftSidebar() {
             <span>{label}</span>
           </Link>
         ))}
+
+        {/* 创作者专属 */}
+        {profile?.is_creator && (
+          <Link
+            href="/create"
+            className="flex items-center gap-4 px-4 py-3 rounded-xl text-[15px] text-white bg-gradient-to-r from-[#f472b6]/20 to-[#db2777]/20 hover:from-[#f472b6]/30 hover:to-[#db2777]/30 mt-2 border border-[#f472b6]/30"
+          >
+            <PlusCircle className="w-5 h-5 text-[#f472b6]" />
+            <span>发布内容</span>
+          </Link>
+        )}
       </nav>
 
       {/* 用户区 */}

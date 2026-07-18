@@ -19,6 +19,11 @@ type Short = {
   comments: number;
   shares: number;
   access: string;
+  is_locked?: boolean;
+  ppv_price?: number;
+  media_url?: string;
+  thumbnail_url?: string;
+  bgm_url?: string;
   created_at: string;
   bgm_title?: string;
   bgm_artist?: string;
@@ -186,10 +191,38 @@ export default function ShortsPage() {
 
       {/* 视频区 */}
       <div className="h-full w-full flex items-center justify-center" style={{ background: current.placeholder_color }}>
-        <div className="text-center text-white/40">
-          <div className="text-6xl mb-2">{current.type === 'video' ? '▶' : '🖼'}</div>
-          <p className="text-sm">{current.type === 'video' ? `${current.duration_sec}秒 视频` : '图集'}</p>
-        </div>
+        {current.media_url && current.type === 'video' ? (
+          <video
+            key={current.id}
+            src={current.media_url}
+            className="w-full h-full object-contain"
+            autoPlay
+            loop
+            muted={muted}
+            playsInline
+            onClick={() => setMuted(!muted)}
+          />
+        ) : current.media_url && current.type === 'gallery' ? (
+          <img src={current.media_url} className="w-full h-full object-contain" alt="" />
+        ) : (
+          <div className="text-center text-white/40">
+            <div className="text-6xl mb-2">{current.type === 'video' ? '▶' : '🖼'}</div>
+            <p className="text-sm">{current.type === 'video' ? `${current.duration_sec}秒 视频` : '图集'}</p>
+          </div>
+        )}
+        {current.is_locked && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20 pointer-events-none">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-[#f472b6]/30 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8">
+                  <path d="M12 2C9.79 2 8 3.79 8 6v3H6c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8c0-1.1-.9-2-2-2h-2V6c0-2.21-1.79-4-4-4zm-2 4c0-1.1.9-2 2-2s2 .9 2 2v3h-4V6z" />
+                </svg>
+              </div>
+              <p className="text-white font-bold">付费内容</p>
+              <p className="text-white/70 text-sm mt-1">解锁 ${current.ppv_price}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 右侧操作栏 */}
