@@ -100,13 +100,12 @@ export default function CreatePage() {
       // 3. 决定 creator_id:有就用,没有就自动创建
       let creatorId = myCreator?.id;
       if (!creatorId) {
-        // 普通用户自动创建 creator 行(简化处理)
+        // 普通用户自动创建 creator 行
         const { data: newCreator, error: ncErr } = await supabase.from('creators').insert({
           username: profile?.username || `user_${user.id.slice(0, 8)}`,
           display_name: profile?.display_name || '新创作者',
           avatar_color: profile?.avatar_color || '#f472b6',
           cover_color: '#831843',
-          cover_gradient: 'linear-gradient(135deg,#f472b6,#db2777)',
           bio: profile?.bio || '',
           subscription_price: 0,
           verified: false,
@@ -118,7 +117,6 @@ export default function CreatePage() {
         if (ncErr) throw ncErr;
         creatorId = newCreator.id;
         setMyCreator(newCreator);
-        // 更新 profile 标记
         await updateProfile({ is_creator: true });
       }
 
