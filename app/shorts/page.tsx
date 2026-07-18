@@ -159,7 +159,7 @@ export default function ShortsPage() {
     >
       {/* 顶部导航 */}
       <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
-        <Link href="/" className="text-white text-xl font-bold">
+        <Link href="/shorts" className="text-white text-xl font-bold">
           only<span className="logo-gradient">feet</span>
         </Link>
         <span className="text-white/70 text-sm">{index + 1} / {shorts.length}</span>

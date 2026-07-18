@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Search, Bell, Mail, User } from 'lucide-react';
+import { Home, Play, Search, Bell, Mail, User } from 'lucide-react';
 
 const tabs = [
-  { href: '/',              icon: Home,   label: '首页' },
+  { href: '/shorts',        icon: Play,   label: '刷视频' },
   { href: '/explore',       icon: Search, label: '发现' },
   { href: '/notifications', icon: Bell,   label: '通知' },
   { href: '/messages',      icon: Mail,   label: '消息' },
@@ -15,7 +15,7 @@ const tabs = [
 export function MobileNav() {
   const pathname = usePathname();
   const isActive = (href: string) => {
-    if (href === '/') return pathname === '/';
+    if (href === '/shorts') return pathname === '/' || pathname.startsWith('/shorts');
     return pathname.startsWith(href);
   };
 

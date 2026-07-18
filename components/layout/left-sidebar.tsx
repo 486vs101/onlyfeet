@@ -2,21 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Search, Bell, Mail, Star, User } from 'lucide-react';
+import { Home, Play, Search, Bell, Mail, Star, User } from 'lucide-react';
 
 const navItems = [
-  { href: '/',              icon: Home,   label: '首页' },
-  { href: '/explore',       icon: Search, label: '发现' },
-  { href: '/notifications', icon: Bell,   label: '通知' },
-  { href: '/messages',      icon: Mail,   label: '消息' },
-  { href: '/subscriptions', icon: Star,   label: '订阅' },
-  { href: '/profile',       icon: User,   label: '我的' },
+  { href: '/shorts',        icon: Play,     label: '刷视频' },
+  { href: '/explore',       icon: Search,   label: '发现' },
+  { href: '/notifications', icon: Bell,     label: '通知' },
+  { href: '/messages',      icon: Mail,     label: '消息' },
+  { href: '/subscriptions', icon: Star,     label: '订阅' },
+  { href: '/profile',       icon: User,     label: '我的' },
 ];
 
 export function LeftSidebar() {
   const pathname = usePathname();
   const isActive = (href: string) => {
-    if (href === '/') return pathname === '/';
+    if (href === '/shorts') return pathname === '/' || pathname.startsWith('/shorts');
     return pathname.startsWith(href);
   };
 
