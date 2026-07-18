@@ -200,13 +200,13 @@ export default function ShortsPage() {
           </div>
           <span className="text-white text-[11px] mt-1">{(current.likes + (liked.has(current.id) ? 1 : 0)).toLocaleString()}</span>
         </button>
-        <button className="flex flex-col items-center">
+        <button onClick={() => user ? null : (window.location.href = '/login')} className="flex flex-col items-center">
           <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
             <MessageCircle className="w-6 h-6 text-white" />
           </div>
           <span className="text-white text-[11px] mt-1">{current.comments}</span>
         </button>
-        <button className="flex flex-col items-center">
+        <button onClick={() => user ? navigator.clipboard.writeText(window.location.href) : (window.location.href = '/login')} className="flex flex-col items-center">
           <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
             <Share2 className="w-6 h-6 text-white" />
           </div>
@@ -232,7 +232,7 @@ export default function ShortsPage() {
             </div>
             <span className="text-white/60 text-xs">@{current.creator?.username}</span>
           </div>
-          <button className="ml-2 px-4 py-1 rounded-full bg-[#f472b6] text-white text-sm font-bold">订阅</button>
+          <button onClick={() => user ? null : (window.location.href = '/login')} className="ml-2 px-4 py-1 rounded-full bg-[#f472b6] text-white text-sm font-bold">订阅</button>
         </Link>
         <p className="text-white text-[15px] mb-2 line-clamp-2">{current.caption}</p>
         {current.hashtags && current.hashtags.length > 0 && (

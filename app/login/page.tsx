@@ -20,7 +20,10 @@ export default function LoginPage() {
     const { error } = await signIn(email, password);
     setLoading(false);
     if (error) {
-      setError(error.message === 'Invalid login credentials' ? '邮箱或密码错误' : error.message);
+      const msg = error.message;
+      if (msg.includes('Invalid login credentials')) setError('邮箱或密码错误');
+      else if (msg.includes('Email not confirmed')) setError('请先验证邮箱(查收验证邮件)');
+      else setError(msg);
     } else {
       router.push('/shorts');
     }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/use-auth';
+import { supabase } from '@/lib/supabase';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -49,10 +50,19 @@ export default function RegisterPage() {
             </svg>
           </div>
           <h2 className="text-2xl font-bold mb-2">注册成功!</h2>
-          <p className="text-white/60 mb-6">请查看邮箱 <b>{email}</b> 完成验证</p>
-          <Link href="/login" className="inline-block px-6 py-3 rounded-xl bg-white text-black font-bold hover:bg-white/90 transition">
-            返回登录
-          </Link>
+          <p className="text-white/60 mb-2">请查看邮箱 <b className="text-white">{email}</b></p>
+          <p className="text-white/50 text-sm mb-6">点击邮件中的验证链接完成注册</p>
+          <div className="space-y-3">
+            <button
+              onClick={async () => { await supabase.auth.resend({ type: 'signup', email }); alert('已重新发送'); }}
+              className="block w-full py-2.5 rounded-xl bg-white/10 text-white font-medium hover:bg-white/15 transition text-sm"
+            >
+              没收到邮件?重新发送
+            </button>
+            <Link href="/login" className="block w-full py-2.5 rounded-xl bg-white text-black font-bold hover:bg-white/90 transition text-sm">
+              返回登录
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -68,7 +78,7 @@ export default function RegisterPage() {
         </Link>
 
         <h2 className="text-2xl font-bold mb-2 text-center">创建账号</h2>
-        <p className="text-white/50 text-center mb-8 text-sm">加入 onlyfeet 社区</p>
+        <p className="text-white/50 text-center mb-8 text-sm">邮箱注册,验证后才能使用</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
