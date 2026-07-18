@@ -48,8 +48,8 @@ export function LeftSidebar() {
           </Link>
         ))}
 
-        {/* 创作者专属 */}
-        {profile?.is_creator && (
+        {/* 已登录用户专属 */}
+        {user && (
           <Link
             href="/create"
             className="flex items-center gap-4 px-4 py-3 rounded-xl text-[15px] text-white bg-gradient-to-r from-[#f472b6]/20 to-[#db2777]/20 hover:from-[#f472b6]/30 hover:to-[#db2777]/30 mt-2 border border-[#f472b6]/30"

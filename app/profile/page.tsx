@@ -452,15 +452,21 @@ export default function ProfilePage() {
             {renderAvatar(112, profile.avatar_url, profile.avatar_color, profile.display_name)}
           </div>
           {!profile.is_creator && (
-            <Link href="/become-creator" className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-[#f472b6] to-[#db2777] text-white text-sm font-bold">
-              <Sparkles className="w-3.5 h-3.5" />
-              成为创作者
-            </Link>
+            <div className="mt-5 space-y-2">
+              <Link href="/create" className="flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#f472b6] to-[#db2777] text-white font-bold">
+                <Plus className="w-4 h-4" />
+                发布内容
+              </Link>
+              <Link href="/become-creator" className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/15 transition">
+                <Sparkles className="w-3.5 h-3.5" />
+                开通创作者(解锁付费功能)
+              </Link>
+            </div>
           )}
           {profile.is_creator && (
-            <Link href="/create" className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-[#f472b6] to-[#db2777] text-white text-sm font-bold">
-              <Plus className="w-3.5 h-3.5" />
-              发布
+            <Link href="/create" className="mt-5 flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#f472b6] to-[#db2777] text-white font-bold">
+              <Plus className="w-4 h-4" />
+              发布新内容
             </Link>
           )}
         </div>

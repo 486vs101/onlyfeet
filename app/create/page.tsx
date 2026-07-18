@@ -11,7 +11,7 @@ type ContentType = 'video' | 'image' | 'audio';
 
 export default function CreatePage() {
   const router = useRouter();
-  const { user, profile } = useAuth();
+  const { user, profile, updateProfile } = useAuth();
   const [type, setType] = useState<ContentType>('video');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -32,16 +32,11 @@ export default function CreatePage() {
 
   useEffect(() => {
     if (user && profile) {
-      supabase.from('creators').select('*').eq('owner_id', user.id).single()
+      // 创作者用 creators 表关联,普通用户的作品直接挂在 user_id 上
+      supabase.from('creators').select('*').eq('owner_id', user.id).maybeSingle()
         .then(({ data }) => setMyCreator(data));
     }
   }, [user, profile]);
-
-  useEffect(() => {
-    if (profile && !profile.is_creator) {
-      router.push('/become-creator');
-    }
-  }, [profile]);
 
   if (!user) {
     return (
@@ -53,6 +48,8 @@ export default function CreatePage() {
       </div>
     );
   }
+
+  const isCreator = profile?.is_creator || !!myCreator;
 
   const handleFile = (f: File | null) => {
     if (!f) return;
@@ -100,22 +97,48 @@ export default function CreatePage() {
 
       setUploadProgress(80);
 
-      // 3. 写入 shorts 表
+      // 3. 决定 creator_id:有就用,没有就自动创建
+      let creatorId = myCreator?.id;
+      if (!creatorId) {
+        // 普通用户自动创建 creator 行(简化处理)
+        const { data: newCreator, error: ncErr } = await supabase.from('creators').insert({
+          username: profile?.username || `user_${user.id.slice(0, 8)}`,
+          display_name: profile?.display_name || '新创作者',
+          avatar_color: profile?.avatar_color || '#f472b6',
+          cover_color: '#831843',
+          cover_gradient: 'linear-gradient(135deg,#f472b6,#db2777)',
+          bio: profile?.bio || '',
+          subscription_price: 0,
+          verified: false,
+          subscriber_count: 0,
+          post_count: 0,
+          short_count: 0,
+          owner_id: user.id,
+        }).select().single();
+        if (ncErr) throw ncErr;
+        creatorId = newCreator.id;
+        setMyCreator(newCreator);
+        // 更新 profile 标记
+        await updateProfile({ is_creator: true });
+      }
+
+      // 4. 写入 shorts 表
       const tags = hashtags.split(/[,，\s]+/).filter(t => t).map(t => t.replace(/^#/, ''));
+      const willLock = isCreator && isLocked; // 普通用户不允许锁
       const { error: insertErr } = await supabase.from('shorts').insert({
-        creator_id: myCreator.id,
+        creator_id: creatorId,
         type: type === 'image' ? 'gallery' : type,
         caption,
         hashtags: tags,
-        placeholder_color: myCreator.avatar_color,
+        placeholder_color: myCreator?.avatar_color || profile?.avatar_color || '#f472b6',
         media_url: mainUrl,
         thumbnail_url: type === 'video' ? mainUrl : mainUrl,
         bgm_title: bgmTitle || null,
         bgm_artist: bgmArtist || null,
         bgm_url: bgmFinalUrl || null,
-        is_locked: isLocked,
-        ppv_price: ppvPrice,
-        access: isLocked ? 'ppv' : 'free',
+        is_locked: willLock,
+        ppv_price: willLock ? ppvPrice : 0,
+        access: willLock ? 'ppv' : 'free',
         views: 0,
         likes: 0,
         comments: 0,
@@ -123,10 +146,10 @@ export default function CreatePage() {
       });
       if (insertErr) throw insertErr;
 
-      // 4. 更新创作者统计
+      // 5. 更新创作者统计
       await supabase.from('creators').update({
-        short_count: (myCreator.short_count || 0) + 1
-      }).eq('id', myCreator.id);
+        short_count: (myCreator?.short_count || 0) + 1
+      }).eq('id', creatorId);
 
       setUploadProgress(100);
       router.push('/shorts');
@@ -225,25 +248,34 @@ export default function CreatePage() {
           </div>
         )}
 
-        {/* 付费设置 */}
-        <div className="mt-4 p-4 rounded-xl bg-white/5">
-          <label className="flex items-center justify-between cursor-pointer">
-            <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-[#f472b6]" />
-              <span className="text-sm font-medium text-white/80">付费内容(单条)</span>
-            </div>
-            <button type="button" onClick={() => setIsLocked(!isLocked)} className={`relative w-11 h-6 rounded-full transition ${isLocked ? 'bg-[#f472b6]' : 'bg-white/20'}`}>
-              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${isLocked ? 'left-5' : 'left-0.5'}`} />
-            </button>
-          </label>
-          {isLocked && (
-            <div className="mt-3 flex items-center gap-2">
-              <span className="text-sm text-white/60">$</span>
-              <input type="number" min="0.99" max="99.99" step="0.01" value={ppvPrice} onChange={(e) => setPpvPrice(parseFloat(e.target.value))} className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
-              <span className="text-sm text-white/60">一次性解锁</span>
-            </div>
-          )}
-        </div>
+        {/* 付费设置 - 仅创作者可见 */}
+        {isCreator && (
+          <div className="mt-4 p-4 rounded-xl bg-white/5">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-[#f472b6]" />
+                <span className="text-sm font-medium text-white/80">付费内容(单条)</span>
+              </div>
+              <button type="button" onClick={() => setIsLocked(!isLocked)} className={`relative w-11 h-6 rounded-full transition ${isLocked ? 'bg-[#f472b6]' : 'bg-white/20'}`}>
+                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${isLocked ? 'left-5' : 'left-0.5'}`} />
+              </button>
+            </label>
+            {isLocked && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-sm text-white/60">$</span>
+                <input type="number" min="0.99" max="99.99" step="0.01" value={ppvPrice} onChange={(e) => setPpvPrice(parseFloat(e.target.value))} className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+                <span className="text-sm text-white/60">一次性解锁</span>
+              </div>
+            )}
+          </div>
+        )}
+        {!isCreator && (
+          <div className="mt-4 p-3 rounded-xl bg-white/5 text-center">
+            <p className="text-white/50 text-xs">
+              💡 开通<Link href="/become-creator" className="text-[#f472b6] ml-1 hover:underline">创作者</Link>后可发布付费内容
+            </p>
+          </div>
+        )}
 
         {error && <div className="mt-4 text-red-400 text-sm bg-red-400/10 rounded-lg p-3">{error}</div>}
 
