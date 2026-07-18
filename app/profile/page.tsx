@@ -75,7 +75,7 @@ export default function ProfilePage() {
   const totalViews = myShorts.reduce((sum, s) => sum + (s.views || 0), 0);
 
   const handleUpload = async (file: File, bucket: 'avatars' | 'covers') => {
-    setUploading(bucket);
+    setUploading(bucket === 'avatars' ? 'avatar' : 'cover');
     try {
       const ext = file.name.split('.').pop() || 'jpg';
       const path = `${user.id}/${Date.now()}.${ext}`;
