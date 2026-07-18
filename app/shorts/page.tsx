@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/use-auth';
 import { Heart, MessageCircle, Share2, Volume2, VolumeX, Music2 } from 'lucide-react';
 
 type Short = {
@@ -50,6 +51,7 @@ function rankScore(s: Short, seenIds: Set<string>): number {
 
 // ===== 滑动逻辑 =====
 export default function ShortsPage() {
+  const { user } = useAuth();
   const [shorts, setShorts] = useState<Short[]>([]);
   const [index, setIndex] = useState(0);
   const [muted, setMuted] = useState(true);
@@ -77,7 +79,7 @@ export default function ShortsPage() {
         for (const s of ranked) {
           const last = lastCreatorCount[s.creator_id] || 0;
           if (last >= 2 && spaced.length > 0 && spaced[spaced.length - 2]?.creator_id === s.creator_id) {
-            spaced.push(s); // 偶尔允许
+            spaced.push(s);
             continue;
           }
           spaced.push(s);
@@ -85,7 +87,17 @@ export default function ShortsPage() {
         }
         setShorts(spaced);
       });
-  }, []);
+
+    // 加载用户已点赞列表
+    if (user) {
+      supabase.from('likes').select('short_id').eq('user_id', user.id).then(({ data }) => {
+        if (data) {
+          const ids = new Set(data.map((l: any) => l.short_id).filter(Boolean));
+          setLiked(ids);
+        }
+      });
+    }
+  }, [user]);
 
   // 记录看过的
   useEffect(() => {
@@ -126,28 +138,35 @@ export default function ShortsPage() {
 
   // 点赞
   const toggleLike = async (s: Short) => {
+    if (!user) {
+      // 未登录 -> 引导去登录
+      window.location.href = '/login';
+      return;
+    }
     const next = new Set(liked);
     const isLiking = !next.has(s.id);
     if (isLiking) next.add(s.id); else next.delete(s.id);
     setLiked(next);
-    localStorage.setItem('liked_shorts', JSON.stringify([...next]));
-    // 写入数据库
+
+    // 写入 likes 表
     if (isLiking) {
-      // 用 UPDATE 而不是 RPC,免去创建函数
-      await supabase.from('shorts').update({ likes: s.likes + 1 }).eq('id', s.id).then(() => {});
+      await supabase.from('likes').insert({ user_id: user.id, short_id: s.id });
+    } else {
+      await supabase.from('likes').delete().eq('user_id', user.id).eq('short_id', s.id);
     }
   };
 
+  // 加载看过的(本地缓存)
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('liked_shorts') || '[]');
-    setLiked(new Set(saved));
+    const seen = JSON.parse(localStorage.getItem('seen_shorts') || '[]');
+    setSeenIds(new Set(seen));
   }, []);
+
+  const current = shorts[index];
 
   if (shorts.length === 0) {
     return <div className="h-screen flex items-center justify-center bg-black text-white/50">加载中...</div>;
   }
-
-  const current = shorts[index];
 
   return (
     <div

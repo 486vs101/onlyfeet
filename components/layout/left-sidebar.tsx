@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Home, Play, Search, Bell, Mail, Star, User } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Play, Search, Bell, Mail, Star, User, LogIn } from 'lucide-react';
+import { useAuth } from '@/lib/use-auth';
 
 const navItems = [
   { href: '/shorts',        icon: Play,     label: '刷视频' },
@@ -15,6 +16,9 @@ const navItems = [
 
 export function LeftSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, profile, signOut } = useAuth();
+
   const isActive = (href: string) => {
     if (href === '/shorts') return pathname === '/' || pathname.startsWith('/shorts');
     return pathname.startsWith(href);
@@ -22,14 +26,12 @@ export function LeftSidebar() {
 
   return (
     <aside className="hidden xl:flex flex-col w-[260px] shrink-0 h-screen sticky top-0 px-4 py-4 border-r border-white/10">
-      {/* Brand logo */}
       <Link href="/" className="px-2 mb-8 w-fit">
         <span className="text-2xl font-bold tracking-tight">
           only<span className="logo-gradient">feet</span>
         </span>
       </Link>
 
-      {/* Nav */}
       <nav className="flex flex-col gap-1 flex-1">
         {navItems.map(({ href, icon: Icon, label }) => (
           <Link
@@ -47,14 +49,30 @@ export function LeftSidebar() {
         ))}
       </nav>
 
-      {/* User pill */}
-      <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.04] transition-colors cursor-pointer">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#f472b6] to-[#db2777] flex items-center justify-center text-white font-bold text-sm">我</div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[15px] font-bold truncate">我的账号</p>
-          <p className="text-[13px] text-white/40 truncate">@myaccount</p>
+      {/* 用户区 */}
+      {user && profile ? (
+        <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.04] transition-colors">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: profile.avatar_color }}>
+            {profile.display_name[0].toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[15px] font-bold truncate">{profile.display_name}</p>
+            <p className="text-[13px] text-white/40 truncate">@{profile.username}</p>
+          </div>
+          <button
+            onClick={async () => { await signOut(); router.push('/shorts'); }}
+            className="text-[13px] text-white/50 hover:text-white"
+            title="退出登录"
+          >
+            退出
+          </button>
         </div>
-      </div>
+      ) : (
+        <Link href="/login" className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-[#f472b6]/20 to-[#db2777]/20 hover:from-[#f472b6]/30 hover:to-[#db2777]/30 transition">
+          <LogIn className="w-5 h-5 text-[#f472b6]" />
+          <span className="text-[15px] font-semibold text-white">登录 / 注册</span>
+        </Link>
+      )}
     </aside>
   );
 }
