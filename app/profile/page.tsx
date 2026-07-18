@@ -19,6 +19,7 @@ const COVER_PRESETS = [
 ];
 
 // ====== 图片裁剪组件 ======
+// 设计:图片固定,裁剪框可拖动 + 8 个角控制点缩放
 function ImageCropper({
   src,
   shape, // 'circle' | 'rect'
@@ -32,90 +33,157 @@ function ImageCropper({
   onSave: (blob: Blob) => void;
   onCancel: () => void;
 }) {
-  const [scale, setScale] = useState(1);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
   const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
-  const imgRef = useRef<HTMLImageElement>(null);
+  const [containerSize, setContainerSize] = useState({ w: 320, h: 320 });
+
+  // 裁剪框状态(相对原图像素坐标)
+  const [crop, setCrop] = useState({ x: 0, y: 0, w: 0, h: 0 });
+
+  // 拖拽/缩放状态
+  const [action, setAction] = useState<null | 'move' | 'nw' | 'ne' | 'sw' | 'se'>(null);
+  const startRef = useRef<{ mx: number; my: number; crop: typeof crop } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 取图片原始尺寸
+  // 加载图片原始尺寸
   useEffect(() => {
     const img = new Image();
-    img.onload = () => setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onload = () => {
+      setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
+    };
     img.src = src;
   }, [src]);
 
-  // 计算容器尺寸
-  const containerSize = ratio === '1:1' ? { w: 280, h: 280 } : { w: 320, h: 180 };
-  const aspectRatio = ratio === '1:1' ? 1 : 16 / 9;
-
-  // 初始 scale:填满容器
+  // 计算容器最大尺寸 + 初始裁剪框
   useEffect(() => {
-    if (imgSize.w === 0) return;
-    const scaleX = containerSize.w / imgSize.w;
-    const scaleY = containerSize.h / imgSize.h;
-    setScale(Math.max(scaleX, scaleY));
-  }, [imgSize]);
+    const maxW = Math.min(window.innerWidth - 32, 480);
+    const aspect = ratio === '1:1' ? 1 : 16 / 9;
+    const h = ratio === '1:1' ? maxW : maxW / aspect;
+    setContainerSize({ w: maxW, h });
+  }, [ratio]);
 
-  // 拖拽(支持鼠标 + 触摸)
-  const lastPointer = useRef<{ x: number; y: number } | null>(null);
+  // 初始裁剪框:以图片中心为锚点,按比例填满短边
+  useEffect(() => {
+    if (imgSize.w === 0 || containerSize.w === 0) return;
+    // 等比缩放图片到容器
+    const scaleFit = Math.min(containerSize.w / imgSize.w, containerSize.h / imgSize.h);
+    const dispW = imgSize.w * scaleFit;
+    const dispH = imgSize.h * scaleFit;
+    const offsetX = (containerSize.w - dispW) / 2;
+    const offsetY = (containerSize.h - dispH) / 2;
 
-  const onPointerDown = (e: React.PointerEvent) => {
-    setDragging(true);
-    lastPointer.current = { x: e.clientX, y: e.clientY };
+    // 短边为裁剪框初始宽度
+    const initDispSize = Math.min(dispW, dispH) * 0.8;
+
+    // 初始裁剪框中心 = 图片中心
+    const cropCenterDisp = { x: dispW / 2 + offsetX, y: dispH / 2 + offsetY };
+    // 转换为原图坐标
+    const cropCenterImg = {
+      x: (cropCenterDisp.x - offsetX) / scaleFit,
+      y: (cropCenterDisp.y - offsetY) / scaleFit,
+    };
+    const cropSizeImg = initDispSize / scaleFit;
+    setCrop({
+      x: Math.max(0, cropCenterImg.x - cropSizeImg / 2),
+      y: Math.max(0, cropCenterImg.y - cropSizeImg / 2),
+      w: Math.min(cropSizeImg, imgSize.w),
+      h: cropSizeImg,
+    });
+  }, [imgSize, containerSize]);
+
+  // 把裁剪框坐标(原图)转换为显示坐标(容器)
+  const scaleFit = imgSize.w ? Math.min(containerSize.w / imgSize.w, containerSize.h / imgSize.h) : 1;
+  const offsetX = imgSize.w ? (containerSize.w - imgSize.w * scaleFit) / 2 : 0;
+  const offsetY = imgSize.h ? (containerSize.h - imgSize.h * scaleFit) / 2 : 0;
+  const cropDisp = {
+    x: crop.x * scaleFit + offsetX,
+    y: crop.y * scaleFit + offsetY,
+    w: crop.w * scaleFit,
+    h: crop.h * scaleFit,
+  };
+
+  // 拖拽/缩放
+  const startAction = (act: typeof action, e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setAction(act);
+    startRef.current = { mx: e.clientX, my: e.clientY, crop: { ...crop } };
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging || !lastPointer.current) return;
-    const dx = e.clientX - lastPointer.current.x;
-    const dy = e.clientY - lastPointer.current.y;
-    lastPointer.current = { x: e.clientX, y: e.clientY };
-    setPos((p) => ({ x: p.x + dx, y: p.y + dy }));
+    if (!action || !startRef.current) return;
+    const dx = e.clientX - startRef.current.mx;
+    const dy = e.clientY - startRef.current.my;
+    // 显示像素 → 原图像素
+    const dxImg = dx / scaleFit;
+    const dyImg = dy / scaleFit;
+    const start = startRef.current.crop;
+
+    if (action === 'move') {
+      setCrop({
+        ...start,
+        x: clamp(start.x + dxImg, 0, imgSize.w - start.w),
+        y: clamp(start.y + dyImg, 0, imgSize.h - start.h),
+      });
+    } else {
+      // 缩放 - 按形状保持比例
+      const aspect = ratio === '1:1' ? 1 : start.w / start.h;
+      let newX = start.x, newY = start.y, newW = start.w, newH = start.h;
+      const deltaW = (action.includes('e') ? dxImg : action.includes('w') ? -dxImg : 0);
+      const deltaH = (action.includes('s') ? dyImg : action.includes('n') ? -dyImg : 0);
+      // 按主要方向缩放 + 按比例适配另一边
+      if (action === 'nw' || action === 'se') {
+        const delta = Math.abs(deltaW) > Math.abs(deltaH) ? deltaW : deltaH;
+        newW = clamp(start.w + delta, 50, imgSize.w);
+        newH = newW / aspect;
+        if (action === 'nw') {
+          newX = start.x + (start.w - newW);
+          newY = start.y + (start.h - newH);
+        }
+      } else if (action === 'ne') {
+        const delta = Math.abs(deltaW) > Math.abs(dyImg * aspect) ? deltaW : dyImg * aspect;
+        newW = clamp(start.w + delta, 50, imgSize.w);
+        newH = newW / aspect;
+        newY = start.y + (start.h - newH);
+      } else if (action === 'sw') {
+        const delta = Math.abs(deltaW) > Math.abs(dyImg * aspect) ? deltaW : dyImg * aspect;
+        newW = clamp(start.w + delta, 50, imgSize.w);
+        newH = newW / aspect;
+        newX = start.x + (start.w - newW);
+      }
+      // 限制边界
+      newX = clamp(newX, 0, imgSize.w - 50);
+      newY = clamp(newY, 0, imgSize.h - 50);
+      newW = clamp(newW, 50, imgSize.w - newX);
+      newH = clamp(newH, 50, imgSize.h - newY);
+      setCrop({ x: newX, y: newY, w: newW, h: newH });
+    }
   };
-  const onPointerUp = () => {
-    setDragging(false);
-    lastPointer.current = null;
+  const endAction = () => {
+    setAction(null);
+    startRef.current = null;
   };
 
-  // 滑块
-  const minScale = ratio === '1:1'
-    ? Math.max(containerSize.w / imgSize.w, containerSize.h / imgSize.h)
-    : Math.max(containerSize.w / imgSize.w, containerSize.h / imgSize.h);
-
-  // 输出裁剪:用 canvas 渲染裁剪区
+  // 输出裁剪
   const handleSave = () => {
-    const canvas = document.createElement('canvas');
     const outputW = ratio === '1:1' ? 800 : 1280;
     const outputH = ratio === '1:1' ? 800 : 720;
+    const canvas = document.createElement('canvas');
     canvas.width = outputW;
     canvas.height = outputH;
     const ctx = canvas.getContext('2d')!;
-
-    // 计算图片在容器里的实际显示
-    const displayedW = imgSize.w * scale;
-    const displayedH = imgSize.h * scale;
-    const centerX = containerSize.w / 2 + pos.x;
-    const centerY = containerSize.h / 2 + pos.y;
-
-    // 转换坐标:从容器坐标到输出坐标
-    const scaleRatio = outputW / containerSize.w;
     ctx.drawImage(
-      imgRef.current!,
-      (0 - centerX + displayedW / 2) * scaleRatio,
-      (0 - centerY + displayedH / 2) * scaleRatio,
-      displayedW * scaleRatio,
-      displayedH * scaleRatio
+      document.querySelector(`#crop-img-${shape}`) as HTMLImageElement,
+      crop.x, crop.y, crop.w, crop.h,
+      0, 0, outputW, outputH
     );
-
     canvas.toBlob((blob) => {
       if (blob) onSave(blob);
     }, 'image/jpeg', 0.92);
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center px-4">
-      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md">
+    <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex items-center justify-center px-4">
+      <div className="bg-zinc-900 rounded-2xl p-5 w-full max-w-lg">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold">{shape === 'circle' ? '调整头像' : '调整背景'}</h3>
           <button onClick={onCancel} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
@@ -123,59 +191,104 @@ function ImageCropper({
           </button>
         </div>
 
-        {/* 裁剪框 */}
+        {/* 容器:图片固定,裁剪框叠加 */}
         <div
           ref={containerRef}
-          className="relative mx-auto bg-black overflow-hidden touch-none select-none"
-          style={{
-            width: containerSize.w,
-            height: containerSize.h,
-            borderRadius: shape === 'circle' ? '50%' : 12,
-            boxShadow: '0 0 0 2px rgba(244,114,182,0.5)',
-            cursor: dragging ? 'grabbing' : 'grab'
-          }}
-          onPointerDown={onPointerDown}
+          className="relative mx-auto bg-black overflow-hidden select-none"
+          style={{ width: containerSize.w, height: containerSize.h }}
           onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
+          onPointerUp={endAction}
+          onPointerCancel={endAction}
         >
-          <img
-            ref={imgRef}
-            src={src}
-            alt=""
-            draggable={false}
-            className="absolute pointer-events-none select-none"
-            style={{
-              width: imgSize.w,
-              height: imgSize.h,
-              left: containerSize.w / 2 - (imgSize.w * scale) / 2 + pos.x,
-              top: containerSize.h / 2 - (imgSize.h * scale) / 2 + pos.y,
-              transform: `scale(${scale})`,
-              transformOrigin: 'top left',
-            }}
-          />
-          {/* 提示文字 */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <p className="text-white/50 text-xs">拖动调整位置</p>
-          </div>
+          {/* 原图 */}
+          {imgSize.w > 0 && (
+            <img
+              id={`crop-img-${shape}`}
+              src={src}
+              alt=""
+              draggable={false}
+              className="absolute pointer-events-none"
+              style={{
+                width: imgSize.w * scaleFit,
+                height: imgSize.h * scaleFit,
+                left: offsetX,
+                top: offsetY,
+              }}
+            />
+          )}
+
+          {/* 暗色遮罩 - 框外区域 */}
+          {imgSize.w > 0 && (
+            <svg className="absolute inset-0 pointer-events-none" width={containerSize.w} height={containerSize.h}>
+              <defs>
+                <mask id={`mask-${shape}`}>
+                  <rect width="100%" height="100%" fill="white" />
+                  {shape === 'circle' ? (
+                    <circle cx={cropDisp.x + cropDisp.w / 2} cy={cropDisp.y + cropDisp.h / 2} r={cropDisp.w / 2} fill="black" />
+                  ) : (
+                    <rect x={cropDisp.x} y={cropDisp.y} width={cropDisp.w} height={cropDisp.h} fill="black" />
+                  )}
+                </mask>
+              </defs>
+              <rect width="100%" height="100%" fill="rgba(0,0,0,0.6)" mask={`url(#mask-${shape})`} />
+            </svg>
+          )}
+
+          {/* 裁剪框边框 */}
+          {imgSize.w > 0 && (
+            <div
+              onPointerDown={(e) => startAction('move', e)}
+              className="absolute cursor-move"
+              style={{
+                left: cropDisp.x,
+                top: cropDisp.y,
+                width: cropDisp.w,
+                height: cropDisp.h,
+                borderRadius: shape === 'circle' ? '50%' : 8,
+                border: '2px solid #f472b6',
+                boxShadow: '0 0 0 1px rgba(0,0,0,0.5)',
+                touchAction: 'none',
+              }}
+            >
+              {/* 网格线(三分法) */}
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/40" />
+                <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/40" />
+                <div className="absolute top-1/3 left-0 right-0 h-px bg-white/40" />
+                <div className="absolute top-2/3 left-0 right-0 h-px bg-white/40" />
+              </div>
+
+              {/* 4 个角的控制点 */}
+              {(['nw', 'ne', 'sw', 'se'] as const).map((pos) => {
+                const style: React.CSSProperties = {
+                  position: 'absolute',
+                  width: 24, height: 24,
+                  background: '#f472b6',
+                  border: '2px solid white',
+                  borderRadius: '50%',
+                  touchAction: 'none',
+                };
+                if (pos === 'nw') { style.left = -12; style.top = -12; style.cursor = 'nwse-resize'; }
+                if (pos === 'ne') { style.right = -12; style.top = -12; style.cursor = 'nesw-resize'; }
+                if (pos === 'sw') { style.left = -12; style.bottom = -12; style.cursor = 'nesw-resize'; }
+                if (pos === 'se') { style.right = -12; style.bottom = -12; style.cursor = 'nwse-resize'; }
+                return (
+                  <div
+                    key={pos}
+                    onPointerDown={(e) => startAction(pos, e)}
+                    style={style}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* 缩放滑块 */}
-        <div className="mt-5 flex items-center gap-3">
-          <span className="text-white/60 text-xs">−</span>
-          <input
-            type="range"
-            min={minScale}
-            max={minScale * 3}
-            step={0.01}
-            value={scale}
-            onChange={(e) => setScale(parseFloat(e.target.value))}
-            className="flex-1 accent-[#f472b6]"
-          />
-          <span className="text-white/60 text-xs">+</span>
-        </div>
+        <p className="text-white/40 text-xs text-center mt-3">
+          拖动方框移动,拖角缩放
+        </p>
 
-        <div className="mt-5 flex gap-3">
+        <div className="mt-4 flex gap-3">
           <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-white/15 text-white text-sm hover:bg-white/5">
             取消
           </button>
@@ -186,6 +299,10 @@ function ImageCropper({
       </div>
     </div>
   );
+}
+
+function clamp(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v));
 }
 
 export default function ProfilePage() {
