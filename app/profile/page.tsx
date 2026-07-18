@@ -250,9 +250,9 @@ export default function ProfilePage() {
                     </>
                   )}
                 </div>
-                <div className="-mt-8 px-4 pb-3">
-                  <div className="w-16 h-16 rounded-full p-0.5 bg-zinc-900 inline-block">
-                    {renderAvatar(60, eAvatarUrl, eAvatar, eName)}
+                <div className="-mt-8 px-4 pb-3 relative z-10">
+                  <div className="w-16 h-16 rounded-full p-1 bg-black inline-block shadow-lg">
+                    {renderAvatar(56, eAvatarUrl, eAvatar, eName)}
                   </div>
                 </div>
               </div>
