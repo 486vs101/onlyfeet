@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Heart, MessageCircle, Share2, Lock, ArrowLeft, Music2 } from 'lucide-react';
@@ -14,7 +14,6 @@ type Short = {
   type: string;
   caption: string;
   hashtags: string[];
-  placeholder_color: string;
   duration_sec: number;
   views: number;
   likes: number;
@@ -23,13 +22,13 @@ type Short = {
   access: string;
   is_locked?: boolean;
   ppv_price?: number;
-  media_url?: string;
-  thumbnail_url?: string;
-  bgm_url?: string;
-  bgm_title?: string;
-  bgm_artist?: string;
-  images?: Media[]; // 图集(多张图)
-  slide_duration?: number;
+  media_url?: string | null;
+  thumbnail_url?: string | null;
+  bgm_url?: string | null;
+  bgm_title?: string | null;
+  bgm_artist?: string | null;
+  images?: Media[] | null;
+  slide_duration?: number | null;
   created_at: string;
 };
 
@@ -39,21 +38,22 @@ export default function PostDetailPage() {
   const { user } = useAuth();
   const [post, setPost] = useState<Short | null>(null);
   const [creator, setCreator] = useState<any>(null);
-  const [index, setIndex] = useState(0); // 图集当前页
+  const [index, setIndex] = useState(0);
   const [liked, setLiked] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    supabase.from('shorts').select('*').eq('id', id).single()
-      .then(({ data }) => {
-        setPost(data);
-        if (data) {
-          supabase.from('creators').select('*').eq('id', data.creator_id).single()
-            .then(({ data: c }) => setCreator(c));
-        }
+    if (!id) return;
+    supabase.from('shorts').select('*').eq('id', id).maybeSingle()
+      .then(({ data, error: err }) => {
+        if (err) { setError(err.message); setLoading(false); return; }
+        if (!data) { setError('作品不存在'); setLoading(false); return; }
+        setPost(data as Short);
+        supabase.from('creators').select('*').eq('id', data.creator_id).maybeSingle()
+          .then(({ data: c }) => setCreator(c));
         setLoading(false);
       });
-    // 检查是否点过赞
     if (user) {
       supabase.from('likes').select('id').eq('user_id', user.id).eq('short_id', id).maybeSingle()
         .then(({ data }) => setLiked(!!data));
@@ -62,31 +62,18 @@ export default function PostDetailPage() {
 
   // 图集自动轮播
   useEffect(() => {
-    if (!post || post.type !== 'gallery' || !post.images || post.images.length <= 1) return;
-    const dur = (post.images[index]?.duration || post.slide_duration || 3) * 1000;
+    if (!post || post.type !== 'gallery') return;
+    const images = post.images || [];
+    if (images.length <= 1) return;
+    const dur = (images[index]?.duration || post.slide_duration || 3) * 1000;
     const t = setTimeout(() => {
-      setIndex((i) => (i + 1) % post.images!.length);
+      setIndex((i) => (i + 1) % images.length);
     }, dur);
     return () => clearTimeout(t);
   }, [index, post]);
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-black text-white/50">加载中...</div>;
-  }
-
-  if (!post) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-white/70">
-        <div className="text-center">
-          <p className="mb-4">作品不存在</p>
-          <Link href="/shorts" className="text-[#f472b6] hover:underline">返回</Link>
-        </div>
-      </div>
-    );
-  }
-
-  const toggleLike = async () => {
-    if (!user) { window.location.href = '/login'; return; }
+  const toggleLike = useCallback(async () => {
+    if (!user || !post) { window.location.href = '/login'; return; }
     if (liked) {
       await supabase.from('likes').delete().eq('user_id', user.id).eq('short_id', post.id);
       setLiked(false);
@@ -94,10 +81,29 @@ export default function PostDetailPage() {
       await supabase.from('likes').insert({ user_id: user.id, short_id: post.id });
       setLiked(true);
     }
-  };
+  }, [user, post, liked]);
 
-  const isGallery = post.type === 'gallery' && post.images && post.images.length > 0;
-  const currentMedia = isGallery ? post.images![index].url : post.media_url;
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-black text-white/50">加载中...</div>;
+  }
+
+  if (error || !post) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white/70">
+        <div className="text-center">
+          <p className="mb-4">{error || '作品不存在'}</p>
+          <Link href="/shorts" className="text-[#f472b6] hover:underline">返回</Link>
+        </div>
+      </div>
+    );
+  }
+
+  // 计算媒体来源
+  const isGallery = post.type === 'gallery';
+  const galleryImages = isGallery ? (post.images || []) : [];
+  const currentMediaUrl = isGallery
+    ? galleryImages[index]?.url || ''
+    : post.media_url;
 
   return (
     <div className="min-h-screen bg-black pb-12">
@@ -109,18 +115,20 @@ export default function PostDetailPage() {
         <h1 className="text-lg font-bold">作品</h1>
       </div>
 
-      {/* 媒体区 */}
+      {/* 媒体区 - 黑底融入刷视频 */}
       <div className="relative bg-black">
-        <div className="aspect-square max-h-[70vh] mx-auto" style={{ background: post.placeholder_color }}>
-          {isGallery ? (
-            <img src={currentMedia} className="w-full h-full object-contain" alt="" />
-          ) : post.media_url ? (
-            <video src={post.media_url} className="w-full h-full object-contain" controls autoPlay loop />
+        <div className="aspect-square max-h-[70vh] mx-auto flex items-center justify-center bg-black">
+          {currentMediaUrl ? (
+            isGallery ? (
+              <img src={currentMediaUrl} className="w-full h-full object-contain" alt="" />
+            ) : (
+              <video src={currentMediaUrl} className="w-full h-full object-contain" controls autoPlay loop />
+            )
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-white/40">无媒体</div>
+            <div className="text-white/30 text-sm">无媒体</div>
           )}
           {post.is_locked && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/70">
               <div className="text-center">
                 <Lock className="w-12 h-12 mx-auto mb-2 text-white" />
                 <p className="text-white font-bold">付费内容</p>
@@ -131,9 +139,9 @@ export default function PostDetailPage() {
         </div>
 
         {/* 图集指示器 */}
-        {isGallery && post.images!.length > 1 && (
+        {isGallery && galleryImages.length > 1 && (
           <div className="flex justify-center gap-1.5 mt-3">
-            {post.images!.map((_, i) => (
+            {galleryImages.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setIndex(i)}
@@ -187,7 +195,7 @@ export default function PostDetailPage() {
           <MessageCircle className="w-5 h-5" />
           <span className="text-sm">{post.comments}</span>
         </button>
-        <button className="flex items-center gap-1.5 text-white/80 hover:text-white">
+        <button onClick={() => navigator.clipboard?.writeText(window.location.href)} className="flex items-center gap-1.5 text-white/80 hover:text-white">
           <Share2 className="w-5 h-5" />
           <span className="text-sm">{post.shares}</span>
         </button>
