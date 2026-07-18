@@ -63,9 +63,13 @@ export function LeftSidebar() {
       {/* 用户区 */}
       {user && profile ? (
         <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.04] transition-colors">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: profile.avatar_color }}>
-            {profile.display_name[0].toUpperCase()}
-          </div>
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} className="w-10 h-10 rounded-full object-cover shrink-0" alt="" />
+          ) : (
+            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: profile.avatar_color }}>
+              {profile.display_name[0].toUpperCase()}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <p className="text-[15px] font-bold truncate">{profile.display_name}</p>
             <p className="text-[13px] text-white/40 truncate">@{profile.username}</p>

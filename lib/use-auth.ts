@@ -9,8 +9,10 @@ export type Profile = {
   username: string;
   display_name: string;
   avatar_color: string;
+  avatar_url?: string | null;
   cover_color?: string;
   cover_gradient?: string;
+  cover_url?: string | null;
   bio: string;
   is_creator: boolean;
   subscription_price: number;
