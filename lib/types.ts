@@ -5,7 +5,9 @@ export type Creator = {
   username: string;
   displayName: string;
   avatarColor: string;
+  avatarUrl?: string | null;
   coverColor: string;
+  coverUrl?: string | null;
   bio: string;
   subscriberCount: number;
   postCount: number;
@@ -13,12 +15,15 @@ export type Creator = {
   subscriptionPrice: number;
   verified: boolean;
   isSubscribed: boolean;
+  ownerId?: string | null;
 };
+
+export type MediaItem = { url: string; duration: number };
 
 export type Post = {
   id: string;
   creatorId: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'gallery';
   placeholderColor: string;
   caption: string;
   hashtags: string[];
@@ -28,6 +33,14 @@ export type Post = {
   isPPV: boolean;
   ppvPrice?: number;
   createdAt: string;
+  mediaUrl?: string | null;
+  coverUrl?: string | null;
+  thumbnailUrl?: string | null;
+  images?: MediaItem[] | null;
+  bgmUrl?: string | null;
+  bgmTitle?: string | null;
+  bgmArtist?: string | null;
+  isPinned?: boolean;
 };
 
 export type Short = {
@@ -35,7 +48,7 @@ export type Short = {
   creatorId: string;
   type: 'video' | 'gallery';
   placeholderColor: string;
-  images?: string[];
+  images?: MediaItem[] | null;
   slideDuration?: number;
   bgm: { title: string; artist: string };
   access: 'free' | 'partial';
@@ -45,4 +58,11 @@ export type Short = {
   durationSec: number;
   stats: { views: number; likes: number; comments: number; shares: number };
   isLiked?: boolean;
+  mediaUrl?: string | null;
+  coverUrl?: string | null;
+  thumbnailUrl?: string | null;
+  bgmUrl?: string | null;
+  isLocked?: boolean;
+  ppvPrice?: number;
+  isPinned?: boolean;
 };

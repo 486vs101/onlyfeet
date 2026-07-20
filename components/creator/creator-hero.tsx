@@ -8,14 +8,25 @@ type Props = { creator: Creator };
 export function CreatorHero({ creator }: Props) {
   return (
     <div>
-      {/* Cover */}
-      <div className="h-48 relative" style={{ background: creator.coverColor }}>
-        {/* Avatar */}
-        <div
-          className="absolute -bottom-10 left-4 w-[84px] h-[84px] rounded-full border-4 border-black flex items-center justify-center text-white font-bold text-3xl"
-          style={{ background: creator.avatarColor }}
-        >
-          {creator.displayName[0]}
+      {/* Cover - 真实图片或色块 */}
+      <div className="h-48 relative overflow-hidden">
+        {creator.coverUrl ? (
+          <img src={creator.coverUrl} className="w-full h-full object-cover" alt="" />
+        ) : (
+          <div className="w-full h-full" style={{ background: creator.coverColor || '#1a1a2e' }} />
+        )}
+        {/* Avatar - 真实图片或色块 */}
+        <div className="absolute -bottom-10 left-4 w-[84px] h-[84px] rounded-full border-4 border-black overflow-hidden bg-black">
+          {creator.avatarUrl ? (
+            <img src={creator.avatarUrl} className="w-full h-full object-cover" alt="" />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-white font-bold text-3xl"
+              style={{ background: creator.avatarColor }}
+            >
+              {creator.displayName[0]}
+            </div>
+          )}
         </div>
       </div>
 

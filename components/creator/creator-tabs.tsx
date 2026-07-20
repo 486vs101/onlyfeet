@@ -24,12 +24,19 @@ export function CreatorTabs({ creator }: Props) {
 
   const mappedShorts = shorts.map((s) => ({
     id: s.id, creatorId: s.creator_id, type: s.type,
-    placeholderColor: s.placeholder_color, images: s.images,
+    placeholderColor: s.placeholder_color,
+    images: s.images || null,
+    mediaUrl: s.media_url || null,
+    coverUrl: s.cover_url || s.thumbnail_url || null,
     slideDuration: s.slide_duration,
     bgm: { title: s.bgm_title, artist: s.bgm_artist },
-    access: s.access, freePreviewSec: s.free_preview_sec,
+    bgmUrl: s.bgm_url || null,
+    access: s.access || 'free',
+    freePreviewSec: s.free_preview_sec,
     caption: s.caption, hashtags: s.hashtags || [],
     durationSec: s.duration_sec,
+    isLocked: s.is_locked,
+    ppvPrice: s.ppv_price,
     stats: { views: s.views, likes: s.likes, comments: s.comments, shares: s.shares },
   }));
 
@@ -39,6 +46,12 @@ export function CreatorTabs({ creator }: Props) {
     caption: p.caption, hashtags: p.hashtags || [],
     likes: p.likes, comments: p.comments,
     isLocked: p.is_locked, isPPV: p.is_ppv, ppvPrice: p.ppv_price,
+    mediaUrl: p.media_url || null,
+    coverUrl: p.cover_url || p.thumbnail_url || null,
+    images: p.images || null,
+    bgmUrl: p.bgm_url || null,
+    bgmTitle: p.bgm_title || null,
+    bgmArtist: p.bgm_artist || null,
     createdAt: p.created_at ? new Date(p.created_at).toLocaleDateString() : '',
   }));
 
@@ -62,7 +75,7 @@ export function CreatorTabs({ creator }: Props) {
       {tab === 'shorts' && <ShortsFeed shorts={mappedShorts} creator={creator} subscribed={subscribed} />}
       {tab === 'posts' && <PostGrid posts={mappedPosts} creator={creator} subscribed={subscribed} />}
       {tab === 'about' && (
-        <div className="p-4 text-[15px] text-[hsl(var(--fg-secondary))] space-y-3">
+        <div className="p-4 text-[15px] text-white/50 space-y-3">
           <p>{creator.bio}</p>
           <p>{creator.subscriberCount.toLocaleString()} 个订阅</p>
           <p>${creator.subscriptionPrice}/month</p>

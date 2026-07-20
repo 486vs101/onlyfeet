@@ -17,9 +17,18 @@ export default function CreatorPage() {
   useEffect(() => {
     if (!username) return;
     supabase.from('creators').select('*').eq('username', username).single()
-      .then(({ data, error }) => {
-        if (error) console.error('Supabase error:', error);
-        if (data) setCreator(data);
+      .then(async ({ data, error }) => {
+        if (error) { console.error('Supabase error:', error); setLoading(false); return; }
+        if (!data) { setLoading(false); return; }
+        // 联查 profile 获取真实头像/封面
+        let avatarUrl = null, coverUrl = null;
+        if (data.owner_id) {
+          const { data: profile } = await supabase.from('profiles')
+            .select('avatar_url, cover_url').eq('id', data.owner_id).maybeSingle();
+          avatarUrl = profile?.avatar_url || null;
+          coverUrl = profile?.cover_url || null;
+        }
+        setCreator({ ...data, avatar_url: avatarUrl, cover_url: coverUrl });
         setLoading(false);
       });
   }, [username]);
@@ -33,7 +42,9 @@ export default function CreatorPage() {
     username: creator.username,
     displayName: creator.display_name,
     avatarColor: creator.avatar_color,
+    avatarUrl: creator.avatar_url || null,
     coverColor: creator.cover_color,
+    coverUrl: creator.cover_url || null,
     bio: creator.bio,
     subscriptionPrice: creator.subscription_price,
     verified: creator.verified,

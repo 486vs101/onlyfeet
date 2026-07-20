@@ -324,7 +324,7 @@ export default function ShortsPage() {
       </div>
 
       {/* 底部信息 */}
-      <div className="absolute bottom-0 left-0 right-16 z-30 p-4 pb-6 bg-gradient-to-t from-black/80 to-transparent">
+      <div className="absolute bottom-0 left-0 right-16 z-30 p-4 pb-6">
         <Link href={`/creator/${current.creator?.username}`} className="flex items-center gap-2 mb-3">
           <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white font-bold bg-black ring-2 ring-white/20">
             {current.creator?.avatar_url ? (
