@@ -333,7 +333,11 @@ export default function ProfilePage() {
         .then(({ data }) => {
           if (!data) return;
           setMyCreator(data);
-          supabase.from('shorts').select('*').eq('creator_id', data.id).order('created_at', { ascending: false })
+          // 排序:置顶优先,其次时间倒序
+          supabase.from('shorts').select('*').eq('creator_id', data.id)
+            .order('is_pinned', { ascending: false })
+            .order('pinned_at', { ascending: false, nullsFirst: false })
+            .order('created_at', { ascending: false })
             .then(({ data: s }) => setMyShorts(s || []));
         });
     }

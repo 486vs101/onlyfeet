@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, MessageCircle, Share2, Lock, ArrowLeft, Music2, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Lock, ArrowLeft, Music2, Trash2, Pin } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
 import { supabase } from '@/lib/supabase';
 
@@ -24,11 +24,14 @@ type Short = {
   ppv_price?: number;
   media_url?: string | null;
   thumbnail_url?: string | null;
+  cover_url?: string | null;
   bgm_url?: string | null;
   bgm_title?: string | null;
   bgm_artist?: string | null;
   images?: Media[] | null;
   slide_duration?: number | null;
+  is_pinned?: boolean;
+  pinned_at?: string | null;
   created_at: string;
 };
 
@@ -105,6 +108,17 @@ export default function PostDetailPage() {
 
   const isOwner = user && creator && creator.owner_id === user.id;
 
+  // 切换置顶状态
+  const togglePin = async () => {
+    if (!post) return;
+    const newPinned = !post.is_pinned;
+    setPost({ ...post, is_pinned: newPinned });
+    await supabase.from('shorts').update({
+      is_pinned: newPinned,
+      pinned_at: newPinned ? new Date().toISOString() : null,
+    }).eq('id', post.id);
+  };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-black text-white/50">加载中...</div>;
   }
@@ -135,6 +149,11 @@ export default function PostDetailPage() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-lg font-bold flex-1">作品</h1>
+        {isOwner && (
+          <button onClick={togglePin} className={`w-9 h-9 rounded-full flex items-center justify-center ${post.is_pinned ? 'bg-[#f472b6]/20' : 'hover:bg-white/10'}`} title={post.is_pinned ? '取消置顶' : '置顶'}>
+            <Pin className={`w-4 h-4 ${post.is_pinned ? 'text-[#f472b6] fill-[#f472b6]' : 'text-white/60'}`} />
+          </button>
+        )}
         {isOwner && (
           <button onClick={handleDelete} className="w-9 h-9 rounded-full hover:bg-red-500/20 flex items-center justify-center group">
             <Trash2 className="w-4 h-4 text-white/60 group-hover:text-red-400" />

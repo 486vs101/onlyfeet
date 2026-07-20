@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { ImageCropper } from '@/components/image-cropper';
 
 type PublishType = 'short' | 'post';
+type MediaType = 'video' | 'gallery' | 'post_text';
 
 type GalleryItem = { file: File; previewUrl: string; duration: number };
 
@@ -18,7 +19,7 @@ export default function CreatePage() {
   const [publishType, setPublishType] = useState<PublishType>('short');
 
   // 作品相关
-  const [mediaType, setMediaType] = useState<'video' | 'gallery'>('video');
+  const [mediaType, setMediaType] = useState<MediaType>('video');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string>('');
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
@@ -36,6 +37,7 @@ export default function CreatePage() {
   const [bgmUrl, setBgmUrl] = useState<string>('');
   const [isLocked, setIsLocked] = useState(false);
   const [ppvPrice, setPpvPrice] = useState(2);
+  const [isPinned, setIsPinned] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
@@ -69,6 +71,64 @@ export default function CreatePage() {
   }
 
   const isCreator = profile?.is_creator || !!myCreator;
+
+  // 媒体上传器(视频/图集共用)
+  const renderMediaUploader = () => {
+    if (mediaType === 'video') {
+      return (
+        <>
+          {!videoPreviewUrl ? (
+            <button onClick={() => videoInput.current?.click()} className="w-full h-48 rounded-2xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-2 hover:border-[#f472b6] transition">
+              <Upload className="w-10 h-10 text-white/40" />
+              <p className="text-white/60">点击上传视频 (mp4)</p>
+              <p className="text-white/30 text-xs">最大 50MB · 保留原画质</p>
+            </button>
+          ) : (
+            <div className="relative w-full h-64 rounded-2xl overflow-hidden bg-black">
+              <video src={videoPreviewUrl} className="w-full h-full object-contain" controls autoPlay muted loop />
+              <button onClick={() => { setVideoFile(null); setVideoPreviewUrl(''); }} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          )}
+          <input ref={videoInput} type="file" accept="video/*" onChange={(e) => handleVideoSelect(e.target.files?.[0] || null)} className="hidden" />
+        </>
+      );
+    }
+    if (mediaType === 'gallery') {
+      return (
+        <>
+          <div className="space-y-3 mb-3">
+            {galleryItems.map((item, idx) => (
+              <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                <div className="flex flex-col gap-0.5">
+                  {idx > 0 && <button onClick={() => moveItemUp(idx)} className="text-white/40 hover:text-white text-xs">▲</button>}
+                </div>
+                <img src={item.previewUrl} className="w-16 h-16 object-cover rounded-lg shrink-0" alt="" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate">{idx + 1}. {item.file.name}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-xs text-white/50">停留</span>
+                    <input type="number" min="1" max="30" step="0.5" value={item.duration} onChange={(e) => setItemDuration(idx, parseFloat(e.target.value) || 1)} className="w-16 bg-black/40 border border-white/10 rounded px-2 py-1 text-sm text-white" />
+                    <span className="text-xs text-white/50">秒</span>
+                  </div>
+                </div>
+                <button onClick={() => removeGalleryItem(idx)} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
+                  <X className="w-4 h-4 text-white/60" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => galleryInput.current?.click()} className="w-full py-3 rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center gap-2 hover:border-[#f472b6] text-white/70 hover:text-white">
+            <Plus className="w-4 h-4" />
+            {galleryItems.length === 0 ? '上传图片' : '添加更多图片'}
+          </button>
+          <input ref={galleryInput} type="file" accept="image/*" multiple onChange={(e) => handleGalleryAdd(e.target.files)} className="hidden" />
+        </>
+      );
+    }
+    return null;
+  };
 
   const handleVideoSelect = (f: File | null) => {
     if (!f) return;
@@ -148,8 +208,10 @@ export default function CreatePage() {
       if (mediaType === 'video' && !videoFile) { setError('请上传视频'); return; }
       if (mediaType === 'gallery' && galleryItems.length === 0) { setError('请至少上传一张图片'); return; }
     } else {
-      // 帖子:必须有内容
-      if (!postBody.trim() && !coverUrl) { setError('请输入内容或上传封面'); return; }
+      // 帖子:必须有内容或媒体
+      if (mediaType === 'video' && !videoFile) { setError('请上传视频'); return; }
+      if (mediaType === 'gallery' && galleryItems.length === 0) { setError('请至少上传一张图片'); return; }
+      if (mediaType === 'post_text' && !postBody.trim()) { setError('请输入帖子内容'); return; }
     }
     if (!caption.trim()) { setError('请填写标题'); return; }
 
@@ -223,6 +285,8 @@ export default function CreatePage() {
           slide_duration: mediaType === 'gallery' ? galleryItems[0]?.duration || 3 : null,
           is_locked: willLock,
           ppv_price: willLock ? ppvPrice : 0,
+          is_pinned: isPinned,
+          pinned_at: isPinned ? new Date().toISOString() : null,
           access: willLock ? 'ppv' : 'free',
           views: 0, likes: 0, comments: 0, shares: 0,
         };
@@ -236,21 +300,45 @@ export default function CreatePage() {
         setUploadProgress(100);
         router.push(`/post/${inserted.id}`);
       } else {
-        // 帖子(动态)
+        // 帖子(动态)- 支持 video/gallery/纯文字
+        let mediaUrl = '';
+        let galleryJson: any = null;
+        let postType = 'post';
+        if (mediaType === 'video') {
+          setUploadProgress(50);
+          mediaUrl = await upload(videoFile!, 'videos');
+          postType = 'video';
+        } else if (mediaType === 'gallery') {
+          const uploadedItems: { url: string; duration: number }[] = [];
+          for (let i = 0; i < galleryItems.length; i++) {
+            const item = galleryItems[i];
+            const url = await upload(item.file, 'images');
+            uploadedItems.push({ url, duration: item.duration });
+            setUploadProgress(25 + (50 * (i + 1) / galleryItems.length));
+          }
+          galleryJson = uploadedItems;
+          postType = 'gallery';
+        }
+
         setUploadProgress(70);
         const { data: inserted, error: insertErr } = await supabase.from('posts').insert({
           creator_id: creatorId,
-          type: 'post',
+          type: postType,
           caption: postBody || caption,
           hashtags: tags,
           placeholder_color: '#000000',
           cover_url: coverUrl || null,
           thumbnail_url: coverUrl || null,
+          media_url: mediaUrl || null,
+          images: galleryJson || [],
+          slide_duration: galleryItems[0]?.duration || 3,
           bgm_title: bgmTitle || null,
           bgm_artist: bgmArtist || null,
           bgm_url: bgmFinalUrl || null,
           is_locked: willLock,
           ppv_price: willLock ? ppvPrice : 0,
+          is_pinned: isPinned,
+          pinned_at: isPinned ? new Date().toISOString() : null,
           likes: 0, comments: 0,
         }).select().single();
         if (insertErr) throw insertErr;
@@ -315,7 +403,7 @@ export default function CreatePage() {
           <input ref={coverInput} type="file" accept="image/*" onChange={(e) => handleCoverSelect(e.target.files?.[0] || null)} className="hidden" />
         </div>
 
-        {/* 作品才有视频/图集 */}
+        {/* 媒体区 - 作品和帖子都可选择 */}
         {publishType === 'short' && (
           <>
             <div className="grid grid-cols-2 gap-2 mb-3">
@@ -326,55 +414,25 @@ export default function CreatePage() {
                 图集
               </button>
             </div>
+            {renderMediaUploader()}
+          </>
+        )}
 
-            {mediaType === 'video' ? (
-              <>
-                {!videoPreviewUrl ? (
-                  <button onClick={() => videoInput.current?.click()} className="w-full h-48 rounded-2xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-2 hover:border-[#f472b6] transition">
-                    <Upload className="w-10 h-10 text-white/40" />
-                    <p className="text-white/60">点击上传视频 (mp4)</p>
-                    <p className="text-white/30 text-xs">最大 50MB · 保留原画质</p>
-                  </button>
-                ) : (
-                  <div className="relative w-full h-64 rounded-2xl overflow-hidden bg-black">
-                    <video src={videoPreviewUrl} className="w-full h-full object-contain" controls autoPlay muted loop />
-                    <button onClick={() => { setVideoFile(null); setVideoPreviewUrl(''); }} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
-                      <X className="w-4 h-4 text-white" />
-                    </button>
-                  </div>
-                )}
-                <input ref={videoInput} type="file" accept="video/*" onChange={(e) => handleVideoSelect(e.target.files?.[0] || null)} className="hidden" />
-              </>
-            ) : (
-              <>
-                <div className="space-y-3 mb-3">
-                  {galleryItems.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
-                      <div className="flex flex-col gap-0.5">
-                        {idx > 0 && <button onClick={() => moveItemUp(idx)} className="text-white/40 hover:text-white text-xs">▲</button>}
-                      </div>
-                      <img src={item.previewUrl} className="w-16 h-16 object-cover rounded-lg shrink-0" alt="" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{idx + 1}. {item.file.name}</p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className="text-xs text-white/50">停留</span>
-                          <input type="number" min="1" max="30" step="0.5" value={item.duration} onChange={(e) => setItemDuration(idx, parseFloat(e.target.value) || 1)} className="w-16 bg-black/40 border border-white/10 rounded px-2 py-1 text-sm text-white" />
-                          <span className="text-xs text-white/50">秒</span>
-                        </div>
-                      </div>
-                      <button onClick={() => removeGalleryItem(idx)} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
-                        <X className="w-4 h-4 text-white/60" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={() => galleryInput.current?.click()} className="w-full py-3 rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center gap-2 hover:border-[#f472b6] text-white/70 hover:text-white">
-                  <Plus className="w-4 h-4" />
-                  {galleryItems.length === 0 ? '上传图片' : '添加更多图片'}
-                </button>
-                <input ref={galleryInput} type="file" accept="image/*" multiple onChange={(e) => handleGalleryAdd(e.target.files)} className="hidden" />
-              </>
-            )}
+        {/* 帖子也支持视频/图集 */}
+        {publishType === 'post' && (
+          <>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <button onClick={() => { setMediaType('post_text'); setVideoFile(null); setGalleryItems([]); }} className={`p-2 rounded-lg border text-xs transition ${mediaType === 'post_text' ? 'border-[#f472b6] bg-[#f472b6]/10 text-white' : 'border-white/10 text-white/60'}`}>
+                纯文字
+              </button>
+              <button onClick={() => { setMediaType('video'); setGalleryItems([]); }} className={`p-2 rounded-lg border text-xs transition ${mediaType === 'video' ? 'border-[#f472b6] bg-[#f472b6]/10 text-white' : 'border-white/10 text-white/60'}`}>
+                视频
+              </button>
+              <button onClick={() => { setMediaType('gallery'); setVideoFile(null); }} className={`p-2 rounded-lg border text-xs transition ${mediaType === 'gallery' ? 'border-[#f472b6] bg-[#f472b6]/10 text-white' : 'border-white/10 text-white/60'}`}>
+                图集
+              </button>
+            </div>
+            {mediaType !== 'post_text' && renderMediaUploader()}
           </>
         )}
 
@@ -425,7 +483,7 @@ export default function CreatePage() {
 
         {/* 付费 */}
         {isCreator && (
-          <div className="mt-4 p-4 rounded-xl bg-white/5">
+          <div className="mt-4 p-4 rounded-xl bg-white/5 space-y-3">
             <label className="flex items-center justify-between cursor-pointer">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-white/80">付费内容</span>
@@ -435,12 +493,21 @@ export default function CreatePage() {
               </button>
             </label>
             {isLocked && (
-              <div className="mt-3 flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <span className="text-sm text-white/60">$</span>
                 <input type="number" min="0.99" max="99.99" step="0.01" value={ppvPrice} onChange={(e) => setPpvPrice(parseFloat(e.target.value))} className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
                 <span className="text-sm text-white/60">一次性解锁</span>
               </div>
             )}
+            <label className="flex items-center justify-between cursor-pointer pt-2 border-t border-white/5">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">📌</span>
+                <span className="text-sm font-medium text-white/80">置顶</span>
+              </div>
+              <button type="button" onClick={() => setIsPinned(!isPinned)} className={`relative w-11 h-6 rounded-full transition ${isPinned ? 'bg-[#f472b6]' : 'bg-white/20'}`}>
+                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${isPinned ? 'left-5' : 'left-0.5'}`} />
+              </button>
+            </label>
           </div>
         )}
 
