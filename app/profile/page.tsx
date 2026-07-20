@@ -308,8 +308,12 @@ function clamp(v: number, min: number, max: number) {
 export default function ProfilePage() {
   const { user, profile, updateProfile } = useAuth();
   const [myShorts, setMyShorts] = useState<any[]>([]);
+  const [myPosts, setMyPosts] = useState<any[]>([]);
   const [myCreator, setMyCreator] = useState<any>(null);
   const [editing, setEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'works' | 'likes' | 'bookmarks'>('works');
+  const [likedItems, setLikedItems] = useState<any[]>([]);
+  const [bookmarkedItems, setBookmarkedItems] = useState<any[]>([]);
 
   // 编辑表单
   const [eName, setEName] = useState('');
@@ -328,19 +332,40 @@ export default function ProfilePage() {
   const coverInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (user && profile?.is_creator) {
+    if (!user) return;
+    if (profile?.is_creator) {
       supabase.from('creators').select('*').eq('owner_id', user.id).single()
         .then(({ data }) => {
           if (!data) return;
           setMyCreator(data);
-          // 排序:置顶优先,其次时间倒序
+          // 作品
           supabase.from('shorts').select('*').eq('creator_id', data.id)
-            .order('is_pinned', { ascending: false })
-            .order('pinned_at', { ascending: false, nullsFirst: false })
-            .order('created_at', { ascending: false })
+            .order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
             .then(({ data: s }) => setMyShorts(s || []));
+          // 帖子
+          supabase.from('posts').select('*').eq('creator_id', data.id)
+            .order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
+            .then(({ data: p }) => setMyPosts(p || []));
         });
     }
+    // 喜欢的作品
+    supabase.from('likes').select('short_id, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
+      .then(async ({ data: likes }) => {
+        if (!likes || likes.length === 0) return setLikedItems([]);
+        const ids = likes.map(l => l.short_id);
+        const { data: shorts } = await supabase.from('shorts').select('*').in('id', ids);
+        const shortMap: Record<string, any> = {}; (shorts || []).forEach(s => { shortMap[s.id] = s; });
+        setLikedItems(likes.map(l => shortMap[l.short_id]).filter(Boolean));
+      });
+    // 收藏的作品
+    supabase.from('bookmarks').select('short_id, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
+      .then(async ({ data: bm }) => {
+        if (!bm || bm.length === 0) return setBookmarkedItems([]);
+        const ids = bm.map(b => b.short_id);
+        const { data: shorts } = await supabase.from('shorts').select('*').in('id', ids);
+        const shortMap: Record<string, any> = {}; (shorts || []).forEach(s => { shortMap[s.id] = s; });
+        setBookmarkedItems(bm.map(b => shortMap[b.short_id]).filter(Boolean));
+      });
   }, [user, profile]);
 
   useEffect(() => {
@@ -481,41 +506,50 @@ export default function ProfilePage() {
         </div>
 
         <div className="mt-6 border-b border-white/10 flex">
-          <button className="flex-1 py-3 text-sm font-bold border-b-2 border-[#f472b6] text-white">作品</button>
-          <button className="flex-1 py-3 text-sm text-white/50 hover:text-white/80">喜欢</button>
-          <button className="flex-1 py-3 text-sm text-white/50 hover:text-white/80">收藏</button>
+          {(['works', 'likes', 'bookmarks'] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-3 text-sm font-bold relative ${activeTab === tab ? 'text-white' : 'text-white/50 hover:text-white/80'}`}>
+              {{works: '作品', likes: '喜欢', bookmarks: '收藏'}[tab]}
+              {activeTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#f472b6] rounded-full" />}
+            </button>
+          ))}
         </div>
 
         <div className="mt-2">
-          {myShorts.length === 0 ? (
-            <p className="text-white/30 text-sm text-center py-12">
-              {profile.is_creator ? '还没有发布作品,去发布一个吧' : '成为创作者后可以发布作品'}
-            </p>
-          ) : (
-            <div className="grid grid-cols-3 gap-0.5">
-              {myShorts.map((s: any) => {
-                const coverUrl = s.cover_url || s.thumbnail_url || (s.images?.[0]?.url) || s.media_url;
-                return (
-                <Link key={s.id} href={`/post/${s.id}`} className="aspect-[3/4] relative overflow-hidden bg-black">
-                  {coverUrl ? (
-                    s.type === 'video' && !s.cover_url && !s.thumbnail_url ? (
-                      <video src={coverUrl} className="w-full h-full object-cover" muted />
-                    ) : (
-                      <img src={coverUrl} alt="" className="w-full h-full object-cover" />
-                    )
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white/30 text-xs bg-black">
-                      无媒体
-                    </div>
-                  )}
-                  <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] flex items-center gap-0.5">
-                    ▶ {(s.views || 0).toLocaleString()}
-                  </div>
-                </Link>
-                );
-              })}
-            </div>
-          )}
+          {(() => {
+            const works = [...myShorts, ...myPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            const items = activeTab === 'works' ? works : activeTab === 'likes' ? likedItems : bookmarkedItems;
+            const isEmpty = items.length === 0;
+            const emptyMsg = {works: profile?.is_creator ? '还没有发布内容' : '成为创作者后可以发布作品', likes: '还没有喜欢任何作品', bookmarks: '还没有收藏任何作品'}[activeTab];
+
+            if (isEmpty) return <p className="text-white/30 text-sm text-center py-12">{emptyMsg}</p>;
+
+            return (
+              <div className="grid grid-cols-3 gap-0.5">
+                {items.map((s: any) => {
+                  const coverUrl = s.cover_url || s.thumbnail_url || (s.images?.[0]?.url) || s.media_url;
+                  const isPost = !s.creator_id || activeTab !== 'works' ? false : myPosts.some(p => p.id === s.id);
+                  return (
+                    <Link key={s.id} href={`/post/${s.id}`} className="aspect-[3/4] relative overflow-hidden bg-black">
+                      {coverUrl ? (
+                        s.type === 'video' && !s.cover_url && !s.thumbnail_url ? (
+                          <video src={coverUrl} className="w-full h-full object-cover" muted />
+                        ) : (
+                          <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+                        )
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white/30 text-xs bg-black">无媒体</div>
+                      )}
+                      {isPost && <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-[#f472b6]/80 text-white text-[9px]">帖子</div>}
+                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] flex items-center gap-0.5">
+                        {s.type === 'video' ? '▶' : '🖼'} {(s.views || 0).toLocaleString()}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
 

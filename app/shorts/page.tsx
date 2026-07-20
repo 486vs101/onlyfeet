@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/use-auth';
-import { Heart, MessageCircle, Share2, Volume2, VolumeX, Music2, X, Send, Link2, Twitter, Facebook } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Volume2, VolumeX, Music2, X, Send, Link2, Twitter, Facebook, Bookmark } from 'lucide-react';
 
 type Media = { url: string; duration: number };
 
@@ -40,6 +40,7 @@ export default function ShortsPage() {
   // Panels
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
   const [comments, setComments] = useState<any[]>([]);
   const [commentText, setCommentText] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
@@ -109,6 +110,9 @@ export default function ShortsPage() {
     if (user) {
       supabase.from('likes').select('short_id').eq('user_id', user.id).then(({ data }) => {
         if (data) setLiked(new Set(data.map(l => l.short_id).filter(Boolean)));
+      });
+      supabase.from('bookmarks').select('short_id').eq('user_id', user.id).then(({ data }) => {
+        if (data) setBookmarked(new Set(data.map(b => b.short_id).filter(Boolean)));
       });
     }
   }, [user]);
@@ -185,6 +189,19 @@ export default function ShortsPage() {
     setLiked(next);
     if (next.has(s.id)) await supabase.from('likes').insert({ user_id: user.id, short_id: s.id });
     else await supabase.from('likes').delete().eq('user_id', user.id).eq('short_id', s.id);
+  };
+
+  const toggleBookmark = async (s: Short) => {
+    if (!user) { window.location.href = '/login'; return; }
+    const next = new Set(bookmarked);
+    if (next.has(s.id)) {
+      next.delete(s.id);
+      await supabase.from('bookmarks').delete().eq('user_id', user.id).eq('short_id', s.id);
+    } else {
+      next.add(s.id);
+      await supabase.from('bookmarks').insert({ user_id: user.id, short_id: s.id });
+    }
+    setBookmarked(next);
   };
 
   // Comments
@@ -280,6 +297,11 @@ export default function ShortsPage() {
         <button onClick={() => setShowShare(true)} className="flex flex-col items-center">
           <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center"><Share2 className="w-6 h-6 text-white" /></div>
           <span className="text-white text-[11px] mt-1">{current.shares}</span>
+        </button>
+        <button onClick={() => toggleBookmark(current)} className="flex flex-col items-center">
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${bookmarked.has(current.id) ? 'bg-[#fbbf24]/20' : 'bg-white/10'}`}>
+            <Bookmark className={`w-6 h-6 ${bookmarked.has(current.id) ? 'fill-[#fbbf24] text-[#fbbf24]' : 'text-white'}`} />
+          </div>
         </button>
         <button onClick={() => setMuted(!muted)} className="flex flex-col items-center">
           <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">{muted ? <VolumeX className="w-6 h-6 text-white" /> : <Volume2 className="w-6 h-6 text-white" />}</div>

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, MessageCircle, Share2, Lock, ArrowLeft, Music2, Trash2, Pin } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Lock, ArrowLeft, Music2, Trash2, Pin, Bookmark } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
 import { supabase } from '@/lib/supabase';
 
@@ -43,6 +43,7 @@ export default function PostDetailPage() {
   const [creator, setCreator] = useState<any>(null);
   const [index, setIndex] = useState(0);
   const [liked, setLiked] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -68,6 +69,8 @@ export default function PostDetailPage() {
     if (user) {
       supabase.from('likes').select('id').eq('user_id', user.id).eq('short_id', id).maybeSingle()
         .then(({ data }) => setLiked(!!data));
+      supabase.from('bookmarks').select('id').eq('user_id', user.id).eq('short_id', id).maybeSingle()
+        .then(({ data }) => setBookmarked(!!data));
     }
   }, [id, user]);
 
@@ -93,6 +96,17 @@ export default function PostDetailPage() {
       setLiked(true);
     }
   }, [user, post, liked]);
+
+  const toggleBookmark = useCallback(async () => {
+    if (!user || !post) { window.location.href = '/login'; return; }
+    if (bookmarked) {
+      await supabase.from('bookmarks').delete().eq('user_id', user.id).eq('short_id', post.id);
+      setBookmarked(false);
+    } else {
+      await supabase.from('bookmarks').insert({ user_id: user.id, short_id: post.id });
+      setBookmarked(true);
+    }
+  }, [user, post, bookmarked]);
 
   // 删除作品(只有创作者本人)
   const handleDelete = async () => {
@@ -266,6 +280,9 @@ export default function PostDetailPage() {
         <button className="flex items-center gap-1.5 text-white/80 hover:text-white">
           <MessageCircle className="w-5 h-5" />
           <span className="text-sm">{post.comments}</span>
+        </button>
+        <button onClick={toggleBookmark} className="flex items-center gap-1.5 text-white/80 hover:text-white">
+          <Bookmark className={`w-5 h-5 ${bookmarked ? 'fill-[#f472b6] text-[#f472b6]' : ''}`} />
         </button>
         <button onClick={() => navigator.clipboard?.writeText(window.location.href)} className="flex items-center gap-1.5 text-white/80 hover:text-white">
           <Share2 className="w-5 h-5" />
