@@ -9,7 +9,7 @@ export function CreatorHero({ creator }: Props) {
   return (
     <div>
       {/* Cover - 真实图片或色块 */}
-      <div className="h-48 relative overflow-hidden">
+      <div className="h-48 relative">
         {creator.coverUrl ? (
           <img src={creator.coverUrl} className="w-full h-full object-cover" alt="" />
         ) : (

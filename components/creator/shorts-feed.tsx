@@ -149,10 +149,6 @@ function ShortItem({ short, index, isActive, muted, subscribed, creator, onToggl
         )}
       </div>
 
-      {/* Gradients */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/60 to-transparent z-10" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-black via-black/40 to-transparent z-10" />
-
       {/* Paywall overlay */}
       {shouldPaywall && (
         <div className="absolute inset-0 z-30 bg-black/70 backdrop-blur-sm flex items-center justify-center">
