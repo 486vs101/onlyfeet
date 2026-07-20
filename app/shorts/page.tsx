@@ -4,65 +4,27 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/use-auth';
-import { Heart, MessageCircle, Share2, Volume2, VolumeX, Music2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Volume2, VolumeX, Music2, X, Send, Link2, Twitter, Facebook } from 'lucide-react';
 
 type Media = { url: string; duration: number };
 
 type Short = {
-  id: string;
-  creator_id: string;
-  type: string;
-  caption: string;
-  hashtags: string[];
-  placeholder_color: string;
-  duration_sec: number;
-  views: number;
-  likes: number;
-  comments: number;
-  shares: number;
-  access: string;
-  is_locked?: boolean;
-  ppv_price?: number;
-  media_url?: string;
-  thumbnail_url?: string;
-  cover_url?: string | null;
-  bgm_url?: string | null;
-  images?: Media[] | null;
-  slide_duration?: number | null;
-  created_at: string;
-  bgm_title?: string;
-  bgm_artist?: string;
-  creator?: {
-    username: string;
-    display_name: string;
-    avatar_color: string;
-    avatar_url?: string | null;
-    cover_url?: string | null;
-    verified: boolean;
-    subscriber_count: number;
-    owner_id?: string;
-  };
+  id: string; creator_id: string; type: string; caption: string; hashtags: string[];
+  placeholder_color: string; duration_sec: number; views: number; likes: number;
+  comments: number; shares: number; access: string; is_locked?: boolean;
+  ppv_price?: number; media_url?: string; thumbnail_url?: string;
+  cover_url?: string | null; bgm_url?: string | null; images?: Media[] | null;
+  slide_duration?: number | null; created_at: string; bgm_title?: string; bgm_artist?: string;
+  creator?: { username: string; display_name: string; avatar_color: string;
+    avatar_url?: string | null; cover_url?: string | null; verified: boolean;
+    subscriber_count: number; owner_id?: string; };
 };
 
-// ===== 算法核心 =====
-// 综合评分:点赞×3 + 评论×2 + 浏览×0.1 + 时效加成 + 创作者热度 - 已看过
 function rankScore(s: Short, seenIds: Set<string>): number {
-  const hoursAgo = Math.max(1, (Date.now() - new Date(s.created_at).getTime()) / 36e5);
-  const recencyBoost = Math.max(0.5, 1.5 - hoursAgo / (24 * 7)); // 7 天线性衰减
-  const creatorBoost = Math.log10((s.creator?.subscriber_count || 1000) + 1) * 0.3;
-  const seen = seenIds.has(s.id) ? -50 : 0;
-
-  return (
-    s.likes * 3 +
-    s.comments * 2 +
-    s.views * 0.1 +
-    recencyBoost * 10 +
-    creatorBoost -
-    seen
-  );
+  const h = Math.max(1, (Date.now() - new Date(s.created_at).getTime()) / 36e5);
+  return s.likes * 3 + s.comments * 2 + s.views * 0.1 + Math.max(0.5, 1.5 - h / (24 * 7)) * 10 + Math.log10((s.creator?.subscriber_count || 1000) + 1) * 0.3 - (seenIds.has(s.id) ? 50 : 0);
 }
 
-// ===== 滑动逻辑 =====
 export default function ShortsPage() {
   const { user } = useAuth();
   const [shorts, setShorts] = useState<Short[]>([]);
@@ -71,297 +33,356 @@ export default function ShortsPage() {
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
-  const touchStart = useRef<{ y: number; t: number } | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const touchStart = useRef<{ y: number; t: number; x: number } | null>(null);
+  const lastTap = useRef(0);
 
-  // 图集自动轮播(当前视频)
+  // Panels
+  const [showComments, setShowComments] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [commentLoading, setCommentLoading] = useState(false);
+
+  // Hearts animation
+  const [hearts, setHearts] = useState<{ id: number; x: number; y: number }[]>([]);
+  const heartId = useRef(0);
+
+  // Progress
+  const [progress, setProgress] = useState(0);
+  const progressRef = useRef<HTMLDivElement>(null);
+
+  // Gallery
   const [galleryIndex, setGalleryIndex] = useState(0);
+
+  // Gallery auto-advance
   useEffect(() => {
     const s = shorts[index];
     if (!s || s.type !== 'gallery') return;
-    const images = s.images || [];
-    if (images.length <= 1) { setGalleryIndex(0); return; }
-    const dur = (images[galleryIndex]?.duration || s.slide_duration || 3) * 1000;
-    const t = setTimeout(() => {
-      setGalleryIndex((i) => (i + 1) % images.length);
-    }, dur);
+    const imgs = s.images || [];
+    if (imgs.length <= 1) { setGalleryIndex(0); return; }
+    const dur = (imgs[galleryIndex]?.duration || s.slide_duration || 3) * 1000;
+    const t = setTimeout(() => setGalleryIndex((i) => (i + 1) % imgs.length), dur);
     return () => clearTimeout(t);
   }, [index, galleryIndex, shorts]);
 
-  // 加载 + 排序
+  // Progress tracking for video
+  useEffect(() => {
+    const v = videoRef.current;
+    const s = shorts[index];
+    if (!v || !s || s.type !== 'video') return;
+    v.currentTime = 0;
+    const iv = setInterval(() => {
+      if (v.duration) setProgress((v.currentTime / v.duration) * 100);
+    }, 100);
+    const onEnded = () => { if (index < shorts.length - 1) setIndex(index + 1); };
+    v.addEventListener('ended', onEnded);
+    return () => { clearInterval(iv); v.removeEventListener('ended', onEnded); };
+  }, [index, shorts]);
+
+  // Load data
   useEffect(() => {
     const seen = JSON.parse(localStorage.getItem('seen_shorts') || '[]');
     setSeenIds(new Set(seen));
-
-    supabase
-      .from('shorts')
-      .select(`*, creator:creators(username, display_name, avatar_color, verified, subscriber_count, owner_id)`)
+    supabase.from('shorts').select('*, creator:creators(username, display_name, avatar_color, verified, subscriber_count, owner_id)')
       .then(async ({ data }) => {
         if (!data) return;
-        // 获取所有创作者的 profile(头像/封面)
         const ownerIds = [...new Set(data.map(s => s.creator?.owner_id).filter(Boolean))];
         const profileMap: Record<string, any> = {};
-        if (ownerIds.length > 0) {
-          const { data: profiles } = await supabase.from('profiles').select('id, avatar_url, cover_url').in('id', ownerIds);
-          (profiles || []).forEach(p => { profileMap[p.id] = p; });
+        if (ownerIds.length) {
+          const { data: p } = await supabase.from('profiles').select('id, avatar_url, cover_url').in('id', ownerIds);
+          (p || []).forEach(x => { profileMap[x.id] = x; });
         }
-        // 合并 profile 数据到 creator
         const enriched = data.map(s => ({
           ...s,
-          creator: s.creator ? {
-            ...s.creator,
-            avatar_url: profileMap[s.creator.owner_id]?.avatar_url || null,
-            cover_url: profileMap[s.creator.owner_id]?.cover_url || null,
-          } : undefined,
+          creator: s.creator ? { ...s.creator, avatar_url: profileMap[s.creator.owner_id]?.avatar_url || null, cover_url: profileMap[s.creator.owner_id]?.cover_url || null } : undefined,
         }));
-        const ranked = [...enriched]
-          .map(s => ({ ...s, score: rankScore(s, new Set(seen)) }))
-          .sort((a, b) => b.score - a.score);
-        // 同创作者间隔(避免连刷 3 条以上)
+        const ranked = [...enriched].map(s => ({ ...s, score: rankScore(s, new Set(seen)) })).sort((a, b) => b.score - a.score);
         const spaced: Short[] = [];
-        const lastCreatorCount: Record<string, number> = {};
+        const lc: Record<string, number> = {};
         for (const s of ranked) {
-          const last = lastCreatorCount[s.creator_id] || 0;
-          if (last >= 2 && spaced.length > 0 && spaced[spaced.length - 2]?.creator_id === s.creator_id) {
-            spaced.push(s);
-            continue;
-          }
-          spaced.push(s);
-          lastCreatorCount[s.creator_id] = last + 1;
+          if ((lc[s.creator_id] || 0) >= 2 && spaced.length > 1 && spaced[spaced.length - 2]?.creator_id === s.creator_id) { spaced.push(s); continue; }
+          spaced.push(s); lc[s.creator_id] = (lc[s.creator_id] || 0) + 1;
         }
         setShorts(spaced);
       });
-
-    // 加载用户已点赞列表
     if (user) {
       supabase.from('likes').select('short_id').eq('user_id', user.id).then(({ data }) => {
-        if (data) {
-          const ids = new Set(data.map((l: any) => l.short_id).filter(Boolean));
-          setLiked(ids);
-        }
+        if (data) setLiked(new Set(data.map(l => l.short_id).filter(Boolean)));
       });
     }
   }, [user]);
 
-  // 记录看过的
+  // Track seen
   useEffect(() => {
-    if (shorts.length === 0) return;
-    const current = shorts[index];
-    if (!current) return;
-    const next = new Set(seenIds);
-    next.add(current.id);
-    setSeenIds(next);
+    if (!shorts.length) return;
+    const c = shorts[index]; if (!c) return;
+    const next = new Set(seenIds); next.add(c.id); setSeenIds(next);
     localStorage.setItem('seen_shorts', JSON.stringify([...next]));
-    // 浏览 +1(去抖)
-    const t = setTimeout(() => {
-      // 浏览 +1
-      supabase.from('shorts').update({ views: current.views + 1 }).eq('id', current.id).then(() => {});
-    }, 1000);
+    const t = setTimeout(() => { supabase.from('shorts').update({ views: c.views + 1 }).eq('id', c.id).then(() => {}); }, 1000);
     return () => clearTimeout(t);
   }, [index]);
 
-  // 上下滑切换
   const goTo = useCallback((i: number) => {
     if (i < 0 || i >= shorts.length) return;
-    setIndex(i);
+    setIndex(i); setGalleryIndex(0); setProgress(0);
   }, [shorts.length]);
 
+  // Touch handlers
   const onTouchStart = (e: React.TouchEvent) => {
-    touchStart.current = { y: e.touches[0].clientY, t: Date.now() };
+    touchStart.current = { y: e.touches[0].clientY, t: Date.now(), x: e.touches[0].clientX };
   };
   const onTouchEnd = (e: React.TouchEvent) => {
     if (!touchStart.current) return;
     const dy = e.changedTouches[0].clientY - touchStart.current.y;
-    if (Math.abs(dy) > 50) goTo(index + (dy < 0 ? 1 : -1));
+    const dx = e.changedTouches[0].clientX - touchStart.current.x;
+    const dt = Date.now() - touchStart.current.t;
+    // Double tap detection: short tap with minimal movement
+    if (dt < 300 && Math.abs(dx) < 30 && Math.abs(dy) < 30) {
+      const now = Date.now();
+      if (now - lastTap.current < 300) {
+        // Double tap → like
+        handleDoubleTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        lastTap.current = 0;
+      } else {
+        lastTap.current = now;
+        // Single tap → toggle mute
+        setTimeout(() => { if (lastTap.current && Date.now() - lastTap.current > 300) setMuted(m => !m); }, 300);
+      }
+    }
+    if (Math.abs(dy) > 50 && Math.abs(dy) > Math.abs(dx)) goTo(index + (dy < 0 ? 1 : -1));
     touchStart.current = null;
   };
-  const onWheel = (e: React.WheelEvent) => {
-    if (Math.abs(e.deltaY) < 30) return;
-    goTo(index + (e.deltaY > 0 ? 1 : -1));
-  };
 
-  // 点赞
-  const toggleLike = async (s: Short) => {
-    if (!user) {
-      // 未登录 -> 引导去登录
-      window.location.href = '/login';
-      return;
-    }
-    const next = new Set(liked);
-    const isLiking = !next.has(s.id);
-    if (isLiking) next.add(s.id); else next.delete(s.id);
-    setLiked(next);
-
-    // 写入 likes 表
-    if (isLiking) {
-      await supabase.from('likes').insert({ user_id: user.id, short_id: s.id });
+  // Double click for desktop
+  const lastClick = useRef(0);
+  const onClick = (e: React.MouseEvent) => {
+    const now = Date.now();
+    if (now - lastClick.current < 300) {
+      handleDoubleTap(e.clientX, e.clientY);
+      lastClick.current = 0;
     } else {
-      await supabase.from('likes').delete().eq('user_id', user.id).eq('short_id', s.id);
+      lastClick.current = now;
     }
   };
 
-  // 加载看过的(本地缓存)
-  useEffect(() => {
-    const seen = JSON.parse(localStorage.getItem('seen_shorts') || '[]');
-    setSeenIds(new Set(seen));
-  }, []);
+  const handleDoubleTap = (x: number, y: number) => {
+    const s = shorts[index]; if (!s) return;
+    const id = ++heartId.current;
+    setHearts(h => [...h, { id, x, y }]);
+    setTimeout(() => setHearts(h => h.filter(hh => hh.id !== id)), 1000);
+    if (!user) { window.location.href = '/login'; return; }
+    if (!liked.has(s.id)) {
+      setLiked(new Set([...liked, s.id]));
+      supabase.from('likes').insert({ user_id: user.id, short_id: s.id });
+    }
+  };
+
+  const toggleLike = async (s: Short) => {
+    if (!user) { window.location.href = '/login'; return; }
+    const next = new Set(liked);
+    next.has(s.id) ? next.delete(s.id) : next.add(s.id);
+    setLiked(next);
+    if (next.has(s.id)) await supabase.from('likes').insert({ user_id: user.id, short_id: s.id });
+    else await supabase.from('likes').delete().eq('user_id', user.id).eq('short_id', s.id);
+  };
+
+  // Comments
+  const openComments = () => {
+    if (!user) { window.location.href = '/login'; return; }
+    setShowComments(true); loadComments();
+  };
+  const loadComments = async () => {
+    setCommentLoading(true);
+    const c = shorts[index]; if (!c) return setCommentLoading(false);
+    const { data } = await supabase.from('comments').select('*, profiles!comments_user_id_fkey(display_name, avatar_url, avatar_color)').eq('short_id', c.id).order('created_at', { ascending: false }).limit(30);
+    setComments(data || []);
+    setCommentLoading(false);
+  };
+  const postComment = async () => {
+    if (!commentText.trim() || !user) return;
+    const c = shorts[index];
+    await supabase.from('comments').insert({ user_id: user.id, short_id: c.id, content: commentText.trim() });
+    setCommentText('');
+    loadComments();
+  };
+
+  // Progress bar drag
+  const onProgressClick = (e: React.MouseEvent) => {
+    if (!progressRef.current || !videoRef.current) return;
+    const rect = progressRef.current.getBoundingClientRect();
+    const pct = ((e.clientX - rect.left) / rect.width) * 100;
+    videoRef.current.currentTime = (pct / 100) * videoRef.current.duration;
+  };
 
   const current = shorts[index];
+  if (shorts.length === 0) return <div className="h-screen flex items-center justify-center bg-black text-white/50">加载中...</div>;
+  if (!current) return <div className="h-screen flex items-center justify-center bg-black text-white/50">加载中...</div>;
 
-  if (shorts.length === 0) {
-    return <div className="h-screen flex items-center justify-center bg-black text-white/50">加载中...</div>;
-  }
+  const isGallery = current.type === 'gallery';
+  const galleryImgs = isGallery ? (current.images || []) : [];
 
   return (
-    <div
-      ref={containerRef}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-      onWheel={onWheel}
-      className="h-screen w-full bg-black overflow-hidden relative select-none"
-    >
-      {/* 顶部导航 */}
-      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
-        <Link href="/shorts" className="text-white text-xl font-bold">
-          only<span className="logo-gradient">feet</span>
-        </Link>
+    <div ref={containerRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onClick={onClick}
+      className="h-screen w-full bg-black overflow-hidden relative select-none">
+      {/* Top */}
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-3" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)' }}>
+        <Link href="/shorts" className="text-white text-xl font-bold">only<span className="logo-gradient">feet</span></Link>
         <span className="text-white/70 text-sm">{index + 1} / {shorts.length}</span>
       </div>
 
-      {/* 视频/图集区 */}
+      {/* Media */}
       <div className="h-full w-full flex items-center justify-center bg-black">
-        {(() => {
-          const isGallery = current.type === 'gallery';
-          const galleryImgs = isGallery ? (current.images || []) : [];
-          
-          // 图集:多图轮播
-          if (isGallery && galleryImgs.length > 0) {
-            const imgUrl = galleryImgs[galleryIndex]?.url || '';
-            return (
-              <div className="relative w-full h-full">
-                {imgUrl ? (
-                  <img src={imgUrl} className="w-full h-full object-contain" alt="" />
-                ) : (
-                  <div className="text-center text-white/40"><div className="text-6xl mb-2">🖼</div><p className="text-sm">图集</p></div>
-                )}
-                {/* 图集进度条 */}
-                {galleryImgs.length > 1 && (
-                  <div className="absolute top-4 left-0 right-0 flex justify-center gap-1 z-30">
-                    {galleryImgs.map((_, i) => (
-                      <div key={i} className={`h-0.5 rounded-full transition-all ${i === galleryIndex ? 'w-8 bg-white' : 'w-4 bg-white/30'}`} />
-                    ))}
-                  </div>
-                )}
+        {isGallery && galleryImgs.length > 0 ? (
+          <div className="relative w-full h-full">
+            {galleryImgs[galleryIndex]?.url ? (
+              <img src={galleryImgs[galleryIndex].url} className="w-full h-full object-contain" alt="" />
+            ) : <div className="text-white/40 text-6xl text-center pt-[40vh]">🖼</div>}
+            {galleryImgs.length > 1 && (
+              <div className="absolute top-8 left-0 right-0 flex justify-center gap-1 z-30">
+                {galleryImgs.map((_, i) => <div key={i} className={`h-0.5 rounded-full transition-all ${i === galleryIndex ? 'w-8 bg-white' : 'w-4 bg-white/30'}`} />)}
               </div>
-            );
-          }
-          
-          // 视频
-          if (current.media_url && current.type === 'video') {
-            return (
-              <video
-                key={current.id}
-                src={current.media_url}
-                className="w-full h-full object-contain"
-                autoPlay loop muted={muted} playsInline
-                onClick={() => setMuted(!muted)}
-              />
-            );
-          }
-          
-          // 单图(旧数据兼容)
-          if (current.media_url && current.type !== 'video') {
-            return <img src={current.media_url} className="w-full h-full object-contain" alt="" />;
-          }
-          
-          // 无媒体
-          return (
-            <div className="text-center text-white/40">
-              <div className="text-6xl mb-2">{current.type === 'video' ? '▶' : '🖼'}</div>
-              <p className="text-sm">{current.type === 'video' ? `${current.duration_sec}秒 视频` : '图集'}</p>
-            </div>
-          );
-        })()}
+            )}
+          </div>
+        ) : current.media_url && current.type === 'video' ? (
+          <video ref={videoRef} src={current.media_url} className="w-full h-full object-contain" autoPlay loop muted={muted} playsInline />
+        ) : current.media_url ? (
+          <img src={current.media_url} className="w-full h-full object-contain" alt="" />
+        ) : (
+          <div className="text-center text-white/40"><div className="text-6xl mb-2">{current.type === 'video' ? '▶' : '🖼'}</div><p className="text-sm">{current.type === 'video' ? `${current.duration_sec}秒 视频` : '图集'}</p></div>
+        )}
         {current.is_locked && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20 pointer-events-none">
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-[#f472b6]/30 flex items-center justify-center">
-                <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8">
-                  <path d="M12 2C9.79 2 8 3.79 8 6v3H6c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8c0-1.1-.9-2-2-2h-2V6c0-2.21-1.79-4-4-4zm-2 4c0-1.1.9-2 2-2s2 .9 2 2v3h-4V6z" />
-                </svg>
-              </div>
-              <p className="text-white font-bold">付费内容</p>
-              <p className="text-white/70 text-sm mt-1">解锁 ${current.ppv_price}</p>
-            </div>
+            <div className="text-center"><div className="w-16 h-16 mx-auto mb-3 rounded-full bg-[#f472b6]/30 flex items-center justify-center"><LockIcon /></div><p className="text-white font-bold">付费内容</p><p className="text-white/70 text-sm mt-1">解锁 ${current.ppv_price}</p></div>
           </div>
         )}
       </div>
 
-      {/* 右侧操作栏 */}
-      <div className="absolute right-3 bottom-24 z-30 flex flex-col gap-5 items-center">
+      {/* Double-tap hearts */}
+      {hearts.map(h => (
+        <div key={h.id} className="absolute pointer-events-none z-50 animate-heart-pop" style={{ left: h.x - 40, top: h.y - 40 }}>
+          <Heart className="w-20 h-20 fill-[#f472b6] text-[#f472b6] opacity-80" />
+        </div>
+      ))}
+
+      {/* Right actions */}
+      <div className="absolute right-3 bottom-20 z-30 flex flex-col gap-5 items-center">
         <button onClick={() => toggleLike(current)} className="flex flex-col items-center">
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${liked.has(current.id) ? 'bg-[#f472b6]' : 'bg-white/10'}`}>
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${liked.has(current.id) ? 'bg-[#f472b6]' : 'bg-white/10'}`}>
             <Heart className={`w-6 h-6 ${liked.has(current.id) ? 'fill-white text-white' : 'text-white'}`} />
           </div>
           <span className="text-white text-[11px] mt-1">{(current.likes + (liked.has(current.id) ? 1 : 0)).toLocaleString()}</span>
         </button>
-        <button onClick={() => user ? null : (window.location.href = '/login')} className="flex flex-col items-center">
-          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-            <MessageCircle className="w-6 h-6 text-white" />
-          </div>
+        <button onClick={openComments} className="flex flex-col items-center">
+          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center"><MessageCircle className="w-6 h-6 text-white" /></div>
           <span className="text-white text-[11px] mt-1">{current.comments}</span>
         </button>
-        <button onClick={() => user ? navigator.clipboard.writeText(window.location.href) : (window.location.href = '/login')} className="flex flex-col items-center">
-          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-            <Share2 className="w-6 h-6 text-white" />
-          </div>
+        <button onClick={() => setShowShare(true)} className="flex flex-col items-center">
+          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center"><Share2 className="w-6 h-6 text-white" /></div>
           <span className="text-white text-[11px] mt-1">{current.shares}</span>
         </button>
         <button onClick={() => setMuted(!muted)} className="flex flex-col items-center">
-          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-            {muted ? <VolumeX className="w-6 h-6 text-white" /> : <Volume2 className="w-6 h-6 text-white" />}
-          </div>
+          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">{muted ? <VolumeX className="w-6 h-6 text-white" /> : <Volume2 className="w-6 h-6 text-white" />}</div>
         </button>
       </div>
 
-      {/* 底部信息 */}
-      <div className="absolute bottom-0 left-0 right-16 z-30 p-4 pb-6">
-        <Link href={`/creator/${current.creator?.username}`} className="flex items-center gap-2 mb-3">
-          <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white font-bold bg-black ring-2 ring-white/20">
-            {current.creator?.avatar_url ? (
-              <img src={current.creator.avatar_url} className="w-full h-full object-cover" alt="" />
-            ) : (
-              <span style={{ background: current.creator?.avatar_color, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {current.creator?.display_name[0]}
-              </span>
-            )}
+      {/* Bottom info */}
+      <div className="absolute bottom-0 left-0 right-16 z-30 p-4 pb-3" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' }}>
+        <Link href={`/creator/${current.creator?.username}`} className="flex items-center gap-2 mb-2">
+          <div className="w-10 h-10 rounded-full overflow-hidden bg-black ring-2 ring-white/20 flex-shrink-0">
+            {current.creator?.avatar_url ? <img src={current.creator.avatar_url} className="w-full h-full object-cover" alt="" /> :
+              <span className="w-full h-full flex items-center justify-center text-white font-bold" style={{ background: current.creator?.avatar_color }}>{current.creator?.display_name[0]}</span>}
           </div>
-          <div>
-            <div className="flex items-center gap-1">
-              <span className="text-white font-bold text-[15px]">{current.creator?.display_name}</span>
-              {current.creator?.verified && <span className="text-[#f472b6] text-xs">✓</span>}
-            </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1"><span className="text-white font-bold text-sm truncate">{current.creator?.display_name}</span>{current.creator?.verified && <span className="text-[#f472b6] text-xs flex-shrink-0">✓</span>}</div>
             <span className="text-white/60 text-xs">@{current.creator?.username}</span>
           </div>
-          <button onClick={() => user ? null : (window.location.href = '/login')} className="ml-2 px-4 py-1 rounded-full bg-[#f472b6] text-white text-sm font-bold">订阅</button>
+          <button onClick={e => { e.preventDefault(); if (!user) { window.location.href = '/login'; return; } }} className="ml-auto px-4 py-1 rounded-full bg-[#f472b6] text-white text-xs font-bold flex-shrink-0">订阅</button>
         </Link>
-        <p className="text-white text-[15px] mb-2 line-clamp-2">{current.caption}</p>
-        {current.hashtags && current.hashtags.length > 0 && (
-          <p className="text-[#f472b6] text-sm mb-2">{current.hashtags.map(h => `#${h}`).join(' ')}</p>
-        )}
-        {current.bgm_title && (
-          <div className="flex items-center gap-1.5 text-white/70 text-xs">
-            <Music2 className="w-3 h-3" />
-            <span>{current.bgm_title} · {current.bgm_artist}</span>
-          </div>
-        )}
+        <p className="text-white text-sm mb-1 line-clamp-2">{current.caption}</p>
+        {current.hashtags?.length > 0 && <p className="text-[#f472b6] text-xs mb-1">{current.hashtags.map(h => `#${h}`).join(' ')}</p>}
+        {current.bgm_title && <div className="flex items-center gap-1 text-white/60 text-xs"><Music2 className="w-3 h-3" /><span>{current.bgm_title} · {current.bgm_artist}</span></div>}
       </div>
 
-      {/* 上下滑提示 */}
-      {index < shorts.length - 1 && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-white/40 text-xs animate-bounce z-20">
-          ↑ 下滑看下一个
+      {/* Progress bar */}
+      {current.type === 'video' && (
+        <div ref={progressRef} onClick={onProgressClick} className="absolute bottom-0 left-0 right-0 z-30 h-0.5 bg-white/20 cursor-pointer">
+          <div className="h-full bg-white transition-all duration-100 ease-linear" style={{ width: `${progress}%` }} />
         </div>
       )}
+
+      {/* Comment panel */}
+      {showComments && (
+        <div className="absolute inset-0 z-50 flex flex-col bg-black/95">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <button onClick={() => setShowComments(false)}><X className="w-5 h-5 text-white" /></button>
+            <span className="text-white font-bold">{comments.length} 条评论</span>
+            <div className="w-5" />
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
+            {commentLoading ? <p className="text-white/40 text-center py-8">加载中...</p> :
+              comments.length === 0 ? <p className="text-white/40 text-center py-8">暂无评论，来说点什么吧</p> :
+                comments.map((c: any) => (
+                  <div key={c.id} className="flex gap-3">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-white/10 flex-shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ background: c.profiles?.avatar_color }}>
+                      {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" alt="" /> : c.profiles?.display_name?.[0] || '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2"><span className="text-white text-sm font-bold">{c.profiles?.display_name || '用户'}</span><span className="text-white/30 text-xs">{new Date(c.created_at).toLocaleDateString()}</span></div>
+                      <p className="text-white/80 text-sm mt-0.5">{c.content}</p>
+                    </div>
+                  </div>
+                ))}
+          </div>
+          <div className="p-3 border-t border-white/10 flex items-center gap-2">
+            <input value={commentText} onChange={e => setCommentText(e.target.value)} onKeyDown={e => e.key === 'Enter' && postComment()} placeholder="说点什么..." className="flex-1 bg-white/5 rounded-full px-4 py-2 text-white text-sm outline-none placeholder:text-white/30" />
+            <button onClick={postComment} disabled={!commentText.trim()} className="text-[#f472b6] disabled:text-white/20"><Send className="w-5 h-5" /></button>
+          </div>
+        </div>
+      )}
+
+      {/* Share panel */}
+      {showShare && (
+        <div className="absolute inset-0 z-50 flex flex-col justify-end" onClick={() => setShowShare(false)}>
+          <div className="bg-zinc-900 rounded-t-2xl p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-white font-bold text-lg mb-4">分享</h3>
+            <div className="flex justify-around mb-6">
+              <button onClick={() => { navigator.clipboard.writeText(window.location.origin + '/post/' + current.id); setShowShare(false); }} className="flex flex-col items-center gap-2">
+                <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center"><Link2 className="w-6 h-6 text-white" /></div>
+                <span className="text-white/70 text-xs">复制链接</span>
+              </button>
+              <button className="flex flex-col items-center gap-2">
+                <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center"><Twitter className="w-6 h-6 text-white" /></div>
+                <span className="text-white/70 text-xs">Twitter</span>
+              </button>
+              <button className="flex flex-col items-center gap-2">
+                <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center"><Facebook className="w-6 h-6 text-white" /></div>
+                <span className="text-white/70 text-xs">Facebook</span>
+              </button>
+            </div>
+            <button onClick={() => setShowShare(false)} className="w-full py-3 rounded-xl bg-white/10 text-white font-bold">取消</button>
+          </div>
+        </div>
+      )}
+
+      {/* Scroll hint */}
+      {index < shorts.length - 1 && (
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/40 text-xs animate-bounce z-20">↑ 下滑看下一个</div>
+      )}
+
+      <style jsx>{`
+        @keyframes heartPop {
+          0% { transform: scale(0); opacity: 1; }
+          30% { transform: scale(1.3); opacity: 0.9; }
+          70% { transform: scale(1); opacity: 0.4; }
+          100% { transform: scale(0.5); opacity: 0; }
+        }
+        .animate-heart-pop { animation: heartPop 1s ease-out forwards; }
+      `}</style>
     </div>
   );
+}
+
+function LockIcon() {
+  return <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8"><path d="M12 2C9.79 2 8 3.79 8 6v3H6c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8c0-1.1-.9-2-2-2h-2V6c0-2.21-1.79-4-4-4zm-2 4c0-1.1.9-2 2-2s2 .9 2 2v3h-4V6z" /></svg>;
 }

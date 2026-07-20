@@ -1,11 +1,27 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Creator } from '@/lib/types';
 import { SubscribeButton } from './subscribe-button';
+import { supabase } from '@/lib/supabase';
 
 type Props = { creator: Creator };
 
 export function CreatorHero({ creator }: Props) {
+  const [followers, setFollowers] = useState(0);
+  const [following, setFollowing] = useState(0);
+
+  useEffect(() => {
+    // 获取粉丝数
+    supabase.from('follows').select('id', { count: 'exact' }).eq('following_id', creator.id)
+      .then(({ count }) => { if (count !== null) setFollowers(count); });
+    // 获取关注数
+    if (creator.ownerId) {
+      supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', creator.ownerId)
+        .then(({ count }) => { if (count !== null) setFollowing(count); });
+    }
+  }, [creator.id, creator.ownerId]);
+
   return (
     <div>
       {/* Cover - 真实图片或色块 */}
@@ -43,8 +59,9 @@ export function CreatorHero({ creator }: Props) {
             <p className="text-[15px] text-white/50">@{creator.username}</p>
             <p className="text-[15px] mt-2">{creator.bio}</p>
             <div className="flex gap-4 mt-2 text-[15px] text-white/50">
-              <span><b className="text-white">{creator.subscriberCount.toLocaleString()}</b> 个订阅</span>
-              <span><b className="text-white">{creator.postCount + creator.shortCount}</b> posts & shorts</span>
+              <span><b className="text-white">{following}</b> 关注</span>
+              <span><b className="text-white">{followers.toLocaleString()}</b> 粉丝</span>
+              <span><b className="text-white">{creator.postCount + creator.shortCount}</b> 作品</span>
             </div>
           </div>
           <div className="shrink-0 ml-4">
