@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, MessageCircle, Share2, Lock, ArrowLeft, Music2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Lock, ArrowLeft, Music2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
 import { supabase } from '@/lib/supabase';
 
@@ -83,6 +83,28 @@ export default function PostDetailPage() {
     }
   }, [user, post, liked]);
 
+  // 删除作品(只有创作者本人)
+  const handleDelete = async () => {
+    if (!post || !user) return;
+    if (!confirm('确定删除这个作品吗?此操作不可恢复')) return;
+    const { error } = await supabase.from('shorts').delete().eq('id', post.id);
+    if (error) {
+      alert('删除失败: ' + error.message);
+      return;
+    }
+    // 同步 likes 清理
+    await supabase.from('likes').delete().eq('short_id', post.id);
+    // 同步创作者统计
+    if (creator) {
+      await supabase.from('creators').update({
+        short_count: Math.max(0, (creator.short_count || 1) - 1)
+      }).eq('id', creator.id);
+    }
+    router.push('/profile');
+  };
+
+  const isOwner = user && creator && creator.owner_id === user.id;
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-black text-white/50">加载中...</div>;
   }
@@ -112,7 +134,12 @@ export default function PostDetailPage() {
         <button onClick={() => router.back()} className="text-white/70 hover:text-white">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-lg font-bold">作品</h1>
+        <h1 className="text-lg font-bold flex-1">作品</h1>
+        {isOwner && (
+          <button onClick={handleDelete} className="w-9 h-9 rounded-full hover:bg-red-500/20 flex items-center justify-center group">
+            <Trash2 className="w-4 h-4 text-white/60 group-hover:text-red-400" />
+          </button>
+        )}
       </div>
 
       {/* 媒体区 - 黑底融入刷视频 */}

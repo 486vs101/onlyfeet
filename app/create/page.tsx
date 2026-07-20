@@ -3,31 +3,31 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Upload, X, Image as ImageIcon, Video as VideoIcon, Lock, Music2, Plus, GripVertical } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Video as VideoIcon, Music2, FileText, Plus } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
 import { supabase } from '@/lib/supabase';
+import { ImageCropper } from '@/components/image-cropper';
 
-type ContentType = 'video' | 'gallery';
+type PublishType = 'short' | 'post';
 
-type GalleryItem = {
-  file: File;
-  previewUrl: string;
-  duration: number; // 秒
-};
+type GalleryItem = { file: File; previewUrl: string; duration: number };
 
 export default function CreatePage() {
   const router = useRouter();
   const { user, profile, updateProfile } = useAuth();
-  const [type, setType] = useState<ContentType>('video');
+  const [publishType, setPublishType] = useState<PublishType>('short');
 
-  // 单视频
+  // 作品相关
+  const [mediaType, setMediaType] = useState<'video' | 'gallery'>('video');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string>('');
-
-  // 多图(可拖动排序)
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+  const [coverUrl, setCoverUrl] = useState<string>('');
 
-  // 共同字段
+  // 帖子相关
+  const [postBody, setPostBody] = useState('');
+
+  // 共同
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState('');
   const [bgmTitle, setBgmTitle] = useState('');
@@ -44,6 +44,11 @@ export default function CreatePage() {
   const videoInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
   const bgmInput = useRef<HTMLInputElement>(null);
+  const coverInput = useRef<HTMLInputElement>(null);
+
+  // 裁切状态
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropTarget, setCropTarget] = useState<'cover' | null>(null);
 
   useEffect(() => {
     if (user && profile) {
@@ -65,25 +70,22 @@ export default function CreatePage() {
 
   const isCreator = profile?.is_creator || !!myCreator;
 
-  // 单视频选择
   const handleVideoSelect = (f: File | null) => {
     if (!f) return;
     setVideoFile(f);
     setVideoPreviewUrl(URL.createObjectURL(f));
   };
 
-  // 多图添加(可累加)
   const handleGalleryAdd = (files: FileList | null) => {
     if (!files) return;
     const newItems: GalleryItem[] = Array.from(files).map((file) => ({
       file,
       previewUrl: URL.createObjectURL(file),
-      duration: 3, // 默认 3 秒
+      duration: 3,
     }));
     setGalleryItems((prev) => [...prev, ...newItems]);
   };
 
-  // 删除某张图
   const removeGalleryItem = (idx: number) => {
     setGalleryItems((prev) => {
       URL.revokeObjectURL(prev[idx].previewUrl);
@@ -91,12 +93,10 @@ export default function CreatePage() {
     });
   };
 
-  // 调整某张图的停留时间
   const setItemDuration = (idx: number, val: number) => {
     setGalleryItems((prev) => prev.map((it, i) => i === idx ? { ...it, duration: val } : it));
   };
 
-  // 上移到顶部
   const moveItemUp = (idx: number) => {
     if (idx === 0) return;
     setGalleryItems((prev) => {
@@ -106,7 +106,25 @@ export default function CreatePage() {
     });
   };
 
-  // BGM
+  // 封面选择 → 弹出裁切
+  const handleCoverSelect = (f: File | null) => {
+    if (!f) return;
+    setCropSrc(URL.createObjectURL(f));
+    setCropTarget('cover');
+  };
+
+  const onCropSave = async (blob: Blob) => {
+    if (!cropTarget) return;
+    const ext = 'jpg';
+    const path = `${user.id}/cover_${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('thumbnails').upload(path, blob, { upsert: false });
+    if (error) { alert('封面上传失败: ' + error.message); setCropSrc(null); setCropTarget(null); return; }
+    const { data: { publicUrl } } = supabase.storage.from('thumbnails').getPublicUrl(path);
+    setCoverUrl(publicUrl);
+    setCropSrc(null);
+    setCropTarget(null);
+  };
+
   const handleBgm = (f: File | null) => {
     if (!f) return;
     setBgmFile(f);
@@ -124,15 +142,21 @@ export default function CreatePage() {
 
   const handlePublish = async () => {
     setError('');
-    if (type === 'video' && !videoFile) { setError('请上传视频'); return; }
-    if (type === 'gallery' && galleryItems.length === 0) { setError('请至少上传一张图片'); return; }
+
+    // 校验
+    if (publishType === 'short') {
+      if (mediaType === 'video' && !videoFile) { setError('请上传视频'); return; }
+      if (mediaType === 'gallery' && galleryItems.length === 0) { setError('请至少上传一张图片'); return; }
+    } else {
+      // 帖子:必须有内容
+      if (!postBody.trim() && !coverUrl) { setError('请输入内容或上传封面'); return; }
+    }
     if (!caption.trim()) { setError('请填写标题'); return; }
 
     setUploading(true);
     setUploadProgress(10);
 
     try {
-      // 决定 creator_id
       let creatorId = myCreator?.id;
       if (!creatorId) {
         const { data: newCreator, error: ncErr } = await supabase.from('creators').insert({
@@ -154,67 +178,90 @@ export default function CreatePage() {
         await updateProfile({ is_creator: true });
       }
 
-      // 上传媒体
-      let mediaUrl = '';
-      let galleryJson: any = null;
-      if (type === 'video') {
-        setUploadProgress(25);
-        mediaUrl = await upload(videoFile!, 'videos');
-      } else {
-        // 多图逐个上传
-        const uploadedItems: { url: string; duration: number }[] = [];
-        for (let i = 0; i < galleryItems.length; i++) {
-          const item = galleryItems[i];
-          const url = await upload(item.file, 'images');
-          uploadedItems.push({ url, duration: item.duration });
-          setUploadProgress(25 + (50 * (i + 1) / galleryItems.length));
-        }
-        galleryJson = uploadedItems;
-      }
-
-      // 上传 BGM(可选)
+      // BGM(可选)
       let bgmFinalUrl = bgmUrl;
       if (bgmFile) {
-        setUploadProgress(80);
+        setUploadProgress(50);
         bgmFinalUrl = await upload(bgmFile, 'bgm');
       }
-
-      setUploadProgress(90);
 
       const tags = hashtags.split(/[,，\s]+/).filter((t) => t).map((t) => t.replace(/^#/, ''));
       const willLock = isCreator && isLocked;
 
-      const insertData: any = {
-        creator_id: creatorId,
-        type,
-        caption,
-        hashtags: tags,
-        placeholder_color: myCreator?.avatar_color || profile?.avatar_color || '#f472b6',
-        media_url: type === 'video' ? mediaUrl : null,
-        thumbnail_url: type === 'video' ? mediaUrl : null,
-        bgm_title: bgmTitle || null,
-        bgm_artist: bgmArtist || null,
-        bgm_url: bgmFinalUrl || null,
-        images: type === 'gallery' ? galleryJson : null,
-        slide_duration: type === 'gallery' ? galleryItems[0]?.duration || 3 : null,
-        is_locked: willLock,
-        ppv_price: willLock ? ppvPrice : 0,
-        access: willLock ? 'ppv' : 'free',
-        views: 0,
-        likes: 0,
-        comments: 0,
-        shares: 0,
-      };
+      if (publishType === 'short') {
+        // 短视频/图集
+        let mediaUrl = '';
+        let galleryJson: any = null;
+        if (mediaType === 'video') {
+          setUploadProgress(25);
+          mediaUrl = await upload(videoFile!, 'videos');
+        } else {
+          const uploadedItems: { url: string; duration: number }[] = [];
+          for (let i = 0; i < galleryItems.length; i++) {
+            const item = galleryItems[i];
+            const url = await upload(item.file, 'images');
+            uploadedItems.push({ url, duration: item.duration });
+            setUploadProgress(25 + (50 * (i + 1) / galleryItems.length));
+          }
+          galleryJson = uploadedItems;
+        }
 
-      const { error: insertErr } = await supabase.from('shorts').insert(insertData);
-      if (insertErr) throw insertErr;
+        setUploadProgress(90);
+        const insertData: any = {
+          creator_id: creatorId,
+          type: mediaType === 'video' ? 'video' : 'gallery',
+          caption,
+          hashtags: tags,
+          placeholder_color: '#000000',
+          media_url: mediaType === 'video' ? mediaUrl : null,
+          thumbnail_url: coverUrl || (mediaType === 'video' ? mediaUrl : null),
+          cover_url: coverUrl || null,
+          bgm_title: bgmTitle || null,
+          bgm_artist: bgmArtist || null,
+          bgm_url: bgmFinalUrl || null,
+          images: mediaType === 'gallery' ? galleryJson : null,
+          slide_duration: mediaType === 'gallery' ? galleryItems[0]?.duration || 3 : null,
+          is_locked: willLock,
+          ppv_price: willLock ? ppvPrice : 0,
+          access: willLock ? 'ppv' : 'free',
+          views: 0, likes: 0, comments: 0, shares: 0,
+        };
+        const { data: inserted, error: insertErr } = await supabase.from('shorts').insert(insertData).select().single();
+        if (insertErr) throw insertErr;
 
-      await supabase.from('creators').update({
-        short_count: (myCreator?.short_count || 0) + 1
-      }).eq('id', creatorId);
+        await supabase.from('creators').update({
+          short_count: (myCreator?.short_count || 0) + 1
+        }).eq('id', creatorId);
 
-      setUploadProgress(100);
-      router.push(`/post/${insertData.creator_id}`);  // 跳到创作者主页(后续优化)
+        setUploadProgress(100);
+        router.push(`/post/${inserted.id}`);
+      } else {
+        // 帖子(动态)
+        setUploadProgress(70);
+        const { data: inserted, error: insertErr } = await supabase.from('posts').insert({
+          creator_id: creatorId,
+          type: 'post',
+          caption: postBody || caption,
+          hashtags: tags,
+          placeholder_color: '#000000',
+          cover_url: coverUrl || null,
+          thumbnail_url: coverUrl || null,
+          bgm_title: bgmTitle || null,
+          bgm_artist: bgmArtist || null,
+          bgm_url: bgmFinalUrl || null,
+          is_locked: willLock,
+          ppv_price: willLock ? ppvPrice : 0,
+          likes: 0, comments: 0,
+        }).select().single();
+        if (insertErr) throw insertErr;
+
+        await supabase.from('creators').update({
+          post_count: (myCreator?.post_count || 0) + 1
+        }).eq('id', creatorId);
+
+        setUploadProgress(100);
+        router.push('/profile');
+      }
     } catch (e: any) {
       setError('发布失败: ' + (e.message || '未知错误'));
       setUploading(false);
@@ -230,88 +277,121 @@ export default function CreatePage() {
           </h1>
         </Link>
         <h2 className="text-2xl font-bold mb-2">发布内容</h2>
-        <p className="text-white/50 mb-6 text-sm">上传视频或多张图片(可同时加 BGM)</p>
+        <p className="text-white/50 mb-6 text-sm">发布作品(进推荐流)或动态(仅关注者看)</p>
 
-        {/* 类型 */}
+        {/* 大类型:作品 vs 帖子 */}
         <div className="grid grid-cols-2 gap-2 mb-6">
-          <button onClick={() => { setType('video'); setGalleryItems([]); }} className={`p-3 rounded-xl border transition ${type === 'video' ? 'border-[#f472b6] bg-[#f472b6]/10 text-white' : 'border-white/10 text-white/60 hover:bg-white/5'}`}>
-            <VideoIcon className="w-5 h-5 mx-auto mb-1" />
-            <span className="text-sm">视频</span>
+          <button onClick={() => setPublishType('short')} className={`p-4 rounded-xl border transition ${publishType === 'short' ? 'border-[#f472b6] bg-[#f472b6]/10 text-white' : 'border-white/10 text-white/60 hover:bg-white/5'}`}>
+            <VideoIcon className="w-6 h-6 mx-auto mb-1" />
+            <p className="text-sm font-bold">作品</p>
+            <p className="text-[10px] text-white/40">进入推荐流</p>
           </button>
-          <button onClick={() => { setType('gallery'); setVideoFile(null); }} className={`p-3 rounded-xl border transition ${type === 'gallery' ? 'border-[#f472b6] bg-[#f472b6]/10 text-white' : 'border-white/10 text-white/60 hover:bg-white/5'}`}>
-            <ImageIcon className="w-5 h-5 mx-auto mb-1" />
-            <span className="text-sm">图集</span>
+          <button onClick={() => setPublishType('post')} className={`p-4 rounded-xl border transition ${publishType === 'post' ? 'border-[#f472b6] bg-[#f472b6]/10 text-white' : 'border-white/10 text-white/60 hover:bg-white/5'}`}>
+            <FileText className="w-6 h-6 mx-auto mb-1" />
+            <p className="text-sm font-bold">帖子 / 动态</p>
+            <p className="text-[10px] text-white/40">订阅者可见</p>
           </button>
         </div>
 
-        {/* 媒体区 */}
-        {type === 'video' ? (
-          <>
-            {!videoPreviewUrl ? (
-              <button onClick={() => videoInput.current?.click()} className="w-full h-48 rounded-2xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-2 hover:border-[#f472b6] transition">
-                <Upload className="w-10 h-10 text-white/40" />
-                <p className="text-white/60">点击上传视频 (mp4)</p>
-                <p className="text-white/30 text-xs">最大 50MB · 保留原画质</p>
+        {/* 封面图(两个类型都可用) */}
+        <div className="mb-5">
+          <label className="block text-sm font-medium mb-2 text-white/80">
+            {publishType === 'post' ? '帖子封面' : '作品封面'}
+            <span className="text-white/40 text-xs ml-1">(独立上传,可裁切)</span>
+          </label>
+          {coverUrl ? (
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black">
+              <img src={coverUrl} className="w-full h-full object-cover" alt="cover" />
+              <button onClick={() => setCoverUrl('')} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
+                <X className="w-4 h-4 text-white" />
               </button>
-            ) : (
-              <div className="relative w-full h-64 rounded-2xl overflow-hidden bg-black">
-                <video src={videoPreviewUrl} className="w-full h-full object-contain" controls autoPlay muted loop />
-                <button onClick={() => { setVideoFile(null); setVideoPreviewUrl(''); }} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
-                  <X className="w-4 h-4 text-white" />
-                </button>
-              </div>
-            )}
-            <input ref={videoInput} type="file" accept="video/*" onChange={(e) => handleVideoSelect(e.target.files?.[0] || null)} className="hidden" />
-          </>
-        ) : (
-          <>
-            {/* 图集:可累加,每张图设置停留时间,显示顺序 */}
-            <div className="space-y-3 mb-3">
-              {galleryItems.map((item, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
-                  <div className="flex flex-col gap-0.5">
-                    {idx > 0 && (
-                      <button onClick={() => moveItemUp(idx)} className="text-white/40 hover:text-white text-xs">▲</button>
-                    )}
-                  </div>
-                  <img src={item.previewUrl} className="w-16 h-16 object-cover rounded-lg shrink-0" alt="" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate">{idx + 1}. {item.file.name}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-xs text-white/50">停留</span>
-                      <input
-                        type="number"
-                        min="1"
-                        max="30"
-                        step="0.5"
-                        value={item.duration}
-                        onChange={(e) => setItemDuration(idx, parseFloat(e.target.value) || 1)}
-                        className="w-16 bg-black/40 border border-white/10 rounded px-2 py-1 text-sm text-white"
-                      />
-                      <span className="text-xs text-white/50">秒</span>
-                    </div>
-                  </div>
-                  <button onClick={() => removeGalleryItem(idx)} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
-                    <X className="w-4 h-4 text-white/60" />
-                  </button>
-                </div>
-              ))}
             </div>
-            <button onClick={() => galleryInput.current?.click()} className="w-full py-3 rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center gap-2 hover:border-[#f472b6] transition text-white/70 hover:text-white">
-              <Plus className="w-4 h-4" />
-              {galleryItems.length === 0 ? '上传图片' : '添加更多图片'}
+          ) : (
+            <button onClick={() => coverInput.current?.click()} className="w-full aspect-video rounded-xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-1 hover:border-[#f472b6] transition">
+              <ImageIcon className="w-6 h-6 text-white/40" />
+              <p className="text-white/60 text-sm">点击上传封面</p>
             </button>
-            <input ref={galleryInput} type="file" accept="image/*" multiple onChange={(e) => handleGalleryAdd(e.target.files)} className="hidden" />
-            {galleryItems.length > 0 && (
-              <p className="text-white/40 text-xs text-center mt-2">共 {galleryItems.length} 张 · 短边停留时间(秒)</p>
+          )}
+          <input ref={coverInput} type="file" accept="image/*" onChange={(e) => handleCoverSelect(e.target.files?.[0] || null)} className="hidden" />
+        </div>
+
+        {/* 作品才有视频/图集 */}
+        {publishType === 'short' && (
+          <>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button onClick={() => { setMediaType('video'); setGalleryItems([]); }} className={`p-2 rounded-lg border text-sm transition ${mediaType === 'video' ? 'border-[#f472b6] bg-[#f472b6]/10 text-white' : 'border-white/10 text-white/60'}`}>
+                视频
+              </button>
+              <button onClick={() => { setMediaType('gallery'); setVideoFile(null); }} className={`p-2 rounded-lg border text-sm transition ${mediaType === 'gallery' ? 'border-[#f472b6] bg-[#f472b6]/10 text-white' : 'border-white/10 text-white/60'}`}>
+                图集
+              </button>
+            </div>
+
+            {mediaType === 'video' ? (
+              <>
+                {!videoPreviewUrl ? (
+                  <button onClick={() => videoInput.current?.click()} className="w-full h-48 rounded-2xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-2 hover:border-[#f472b6] transition">
+                    <Upload className="w-10 h-10 text-white/40" />
+                    <p className="text-white/60">点击上传视频 (mp4)</p>
+                    <p className="text-white/30 text-xs">最大 50MB · 保留原画质</p>
+                  </button>
+                ) : (
+                  <div className="relative w-full h-64 rounded-2xl overflow-hidden bg-black">
+                    <video src={videoPreviewUrl} className="w-full h-full object-contain" controls autoPlay muted loop />
+                    <button onClick={() => { setVideoFile(null); setVideoPreviewUrl(''); }} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                )}
+                <input ref={videoInput} type="file" accept="video/*" onChange={(e) => handleVideoSelect(e.target.files?.[0] || null)} className="hidden" />
+              </>
+            ) : (
+              <>
+                <div className="space-y-3 mb-3">
+                  {galleryItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                      <div className="flex flex-col gap-0.5">
+                        {idx > 0 && <button onClick={() => moveItemUp(idx)} className="text-white/40 hover:text-white text-xs">▲</button>}
+                      </div>
+                      <img src={item.previewUrl} className="w-16 h-16 object-cover rounded-lg shrink-0" alt="" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{idx + 1}. {item.file.name}</p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-xs text-white/50">停留</span>
+                          <input type="number" min="1" max="30" step="0.5" value={item.duration} onChange={(e) => setItemDuration(idx, parseFloat(e.target.value) || 1)} className="w-16 bg-black/40 border border-white/10 rounded px-2 py-1 text-sm text-white" />
+                          <span className="text-xs text-white/50">秒</span>
+                        </div>
+                      </div>
+                      <button onClick={() => removeGalleryItem(idx)} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
+                        <X className="w-4 h-4 text-white/60" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => galleryInput.current?.click()} className="w-full py-3 rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center gap-2 hover:border-[#f472b6] text-white/70 hover:text-white">
+                  <Plus className="w-4 h-4" />
+                  {galleryItems.length === 0 ? '上传图片' : '添加更多图片'}
+                </button>
+                <input ref={galleryInput} type="file" accept="image/*" multiple onChange={(e) => handleGalleryAdd(e.target.files)} className="hidden" />
+              </>
             )}
           </>
         )}
 
+        {/* 帖子的正文 */}
+        {publishType === 'post' && (
+          <div className="mb-5">
+            <label className="block text-sm font-medium mb-1.5 text-white/80">帖子内容</label>
+            <textarea value={postBody} onChange={(e) => setPostBody(e.target.value)} rows={5} maxLength={2000} placeholder="分享点什么..." className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#f472b6] transition resize-none" />
+          </div>
+        )}
+
         {/* 标题 */}
         <div className="mt-5">
-          <label className="block text-sm font-medium mb-1.5 text-white/80">标题 / 描述</label>
-          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={3} maxLength={500} placeholder="说点什么..." className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#f472b6] transition resize-none" />
+          <label className="block text-sm font-medium mb-1.5 text-white/80">
+            {publishType === 'post' ? '标题(短)' : '标题 / 描述'}
+          </label>
+          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={2} maxLength={publishType === 'post' ? 100 : 500} placeholder={publishType === 'post' ? '一句话标题' : '说点什么...'} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#f472b6] transition resize-none" />
         </div>
 
         {/* 标签 */}
@@ -320,7 +400,7 @@ export default function CreatePage() {
           <input value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="feet nailart aesthetic" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#f472b6] transition" />
         </div>
 
-        {/* BGM - 视频和图集都能用 */}
+        {/* BGM */}
         <div className="mt-4 p-4 rounded-xl bg-white/5">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -343,12 +423,11 @@ export default function CreatePage() {
           <input ref={bgmInput} type="file" accept="audio/*" onChange={(e) => handleBgm(e.target.files?.[0] || null)} className="hidden" />
         </div>
 
-        {/* 付费 - 仅创作者 */}
+        {/* 付费 */}
         {isCreator && (
           <div className="mt-4 p-4 rounded-xl bg-white/5">
             <label className="flex items-center justify-between cursor-pointer">
               <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-[#f472b6]" />
                 <span className="text-sm font-medium text-white/80">付费内容</span>
               </div>
               <button type="button" onClick={() => setIsLocked(!isLocked)} className={`relative w-11 h-6 rounded-full transition ${isLocked ? 'bg-[#f472b6]' : 'bg-white/20'}`}>
@@ -362,11 +441,6 @@ export default function CreatePage() {
                 <span className="text-sm text-white/60">一次性解锁</span>
               </div>
             )}
-          </div>
-        )}
-        {!isCreator && (
-          <div className="mt-4 p-3 rounded-xl bg-white/5 text-center">
-            <p className="text-white/50 text-xs">💡 开通<Link href="/become-creator" className="text-[#f472b6] ml-1 hover:underline">创作者</Link>后可发布付费内容</p>
           </div>
         )}
 
@@ -385,9 +459,20 @@ export default function CreatePage() {
         )}
 
         <button onClick={handlePublish} disabled={uploading} className="mt-6 w-full py-3 rounded-xl text-white font-bold text-[15px] bg-gradient-to-r from-[#f472b6] to-[#db2777] hover:opacity-90 transition disabled:opacity-50">
-          {uploading ? '发布中...' : '发布'}
+          {uploading ? '发布中...' : (publishType === 'short' ? '发布作品' : '发布帖子')}
         </button>
       </div>
+
+      {/* 封面裁切弹窗 */}
+      {cropSrc && cropTarget === 'cover' && (
+        <ImageCropper
+          src={cropSrc}
+          shape="rect"
+          ratio="16:9"
+          onSave={onCropSave}
+          onCancel={() => { setCropSrc(null); setCropTarget(null); }}
+        />
+      )}
     </div>
   );
 }
