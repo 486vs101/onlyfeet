@@ -502,7 +502,7 @@ export default function ProfilePage() {
                       <img src={s.media_url} alt="" className="w-full h-full object-cover" />
                     )
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white/30 text-xs" style={{ background: s.placeholder_color || s.placeholderColor }}>
+                    <div className="w-full h-full flex items-center justify-center text-white/30 text-xs bg-black">
                       无媒体
                     </div>
                   )}

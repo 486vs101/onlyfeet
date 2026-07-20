@@ -41,7 +41,7 @@ export function ShortsFeed({ shorts, creator, subscribed }: Props) {
                 ) : (
                   <div
                     className="w-full flex items-center justify-center text-white/30"
-                    style={{ aspectRatio: '3/4', background: short.placeholderColor }}
+                    style={{ aspectRatio: '3/4', background: '#000' }}
                   >
                     <ImageIcon className="w-10 h-10" />
                   </div>

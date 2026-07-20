@@ -25,7 +25,7 @@ export function PostModal({ post, creator, subscribed, isLiked, onToggleLike, on
         <div
           className="w-full flex items-center justify-center text-white"
           style={{
-            background: isLocked ? '#1a1a2e' : post.placeholderColor,
+            background: isLocked ? '#1a1a2e' : '#000',
             aspectRatio: post.type === 'video' ? '9/16' : '4/5',
           }}
         >
