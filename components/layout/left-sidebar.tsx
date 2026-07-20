@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Play, Search, Bell, Mail, Star, User, LogIn, PlusCircle, Sparkles } from 'lucide-react';
+import { Play, Search, Bell, Mail, Star, User, LogIn, PlusCircle, Settings } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
 
 const navItems = [
@@ -62,8 +62,13 @@ export function LeftSidebar() {
 
       {/* 用户区 */}
       {user && profile ? (
-        <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.04] transition-colors">
-          {profile.avatar_url ? (
+        <>
+          <Link href="/settings" className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.04] transition-colors text-white/60 hover:text-white">
+            <Settings className="w-5 h-5" />
+            <span className="text-[15px]">设置</span>
+          </Link>
+          <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.04] transition-colors">
+            {profile.avatar_url ? (
             <img src={profile.avatar_url} className="w-10 h-10 rounded-full object-cover shrink-0" alt="" />
           ) : (
             <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: profile.avatar_color }}>
@@ -82,6 +87,7 @@ export function LeftSidebar() {
             退出
           </button>
         </div>
+        </>
       ) : (
         <Link href="/login" className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-[#f472b6]/20 to-[#db2777]/20 hover:from-[#f472b6]/30 hover:to-[#db2777]/30 transition">
           <LogIn className="w-5 h-5 text-[#f472b6]" />
