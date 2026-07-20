@@ -493,16 +493,18 @@ export default function ProfilePage() {
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-0.5">
-              {myShorts.map((s: any) => (
-                <Link key={s.id} href={`/post/${s.id}`} className="aspect-[3/4] relative overflow-hidden bg-zinc-900">
-                  {s.media_url ? (
-                    s.type === 'video' ? (
-                      <video src={s.media_url} className="w-full h-full object-cover" muted />
+              {myShorts.map((s: any) => {
+                const coverUrl = s.cover_url || s.thumbnail_url || (s.images?.[0]?.url) || s.media_url;
+                return (
+                <Link key={s.id} href={`/post/${s.id}`} className="aspect-[3/4] relative overflow-hidden bg-black">
+                  {coverUrl ? (
+                    s.type === 'video' && !s.cover_url && !s.thumbnail_url ? (
+                      <video src={coverUrl} className="w-full h-full object-cover" muted />
                     ) : (
-                      <img src={s.media_url} alt="" className="w-full h-full object-cover" />
+                      <img src={coverUrl} alt="" className="w-full h-full object-cover" />
                     )
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white/30 text-xs" style={{ background: s.placeholder_color || s.placeholderColor }}>
+                    <div className="w-full h-full flex items-center justify-center text-white/30 text-xs bg-black">
                       无媒体
                     </div>
                   )}
@@ -510,7 +512,8 @@ export default function ProfilePage() {
                     ▶ {(s.views || 0).toLocaleString()}
                   </div>
                 </Link>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
