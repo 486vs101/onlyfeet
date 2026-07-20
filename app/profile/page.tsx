@@ -311,7 +311,7 @@ export default function ProfilePage() {
   const [myPosts, setMyPosts] = useState<any[]>([]);
   const [myCreator, setMyCreator] = useState<any>(null);
   const [editing, setEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'works' | 'likes' | 'bookmarks'>('works');
+  const [activeTab, setActiveTab] = useState<'works' | 'posts' | 'likes' | 'bookmarks'>('works');
   const [likedItems, setLikedItems] = useState<any[]>([]);
   const [bookmarkedItems, setBookmarkedItems] = useState<any[]>([]);
 
@@ -506,10 +506,10 @@ export default function ProfilePage() {
         </div>
 
         <div className="mt-6 border-b border-white/10 flex">
-          {(['works', 'likes', 'bookmarks'] as const).map(tab => (
+          {(['works', 'posts', 'likes', 'bookmarks'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`flex-1 py-3 text-sm font-bold relative ${activeTab === tab ? 'text-white' : 'text-white/50 hover:text-white/80'}`}>
-              {{works: '作品', likes: '喜欢', bookmarks: '收藏'}[tab]}
+              {{works: '作品', posts: '帖子', likes: '喜欢', bookmarks: '收藏'}[tab]}
               {activeTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#f472b6] rounded-full" />}
             </button>
           ))}
@@ -517,10 +517,9 @@ export default function ProfilePage() {
 
         <div className="mt-2">
           {(() => {
-            const works = [...myShorts, ...myPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            const items = activeTab === 'works' ? works : activeTab === 'likes' ? likedItems : bookmarkedItems;
+            const items = activeTab === 'works' ? myShorts : activeTab === 'posts' ? myPosts : activeTab === 'likes' ? likedItems : bookmarkedItems;
             const isEmpty = items.length === 0;
-            const emptyMsg = {works: profile?.is_creator ? '还没有发布内容' : '成为创作者后可以发布作品', likes: '还没有喜欢任何作品', bookmarks: '还没有收藏任何作品'}[activeTab];
+            const emptyMsg = {works: profile?.is_creator ? '还没有发布作品' : '成为创作者后可以发布作品', posts: '还没有发布帖子', likes: '还没有喜欢任何作品', bookmarks: '还没有收藏任何作品'}[activeTab];
 
             if (isEmpty) return <p className="text-white/30 text-sm text-center py-12">{emptyMsg}</p>;
 
@@ -528,7 +527,6 @@ export default function ProfilePage() {
               <div className="grid grid-cols-3 gap-0.5">
                 {items.map((s: any) => {
                   const coverUrl = s.cover_url || s.thumbnail_url || (s.images?.[0]?.url) || s.media_url;
-                  const isPost = !s.creator_id || activeTab !== 'works' ? false : myPosts.some(p => p.id === s.id);
                   return (
                     <Link key={s.id} href={`/post/${s.id}`} className="aspect-[3/4] relative overflow-hidden bg-black">
                       {coverUrl ? (
@@ -540,7 +538,6 @@ export default function ProfilePage() {
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-white/30 text-xs bg-black">无媒体</div>
                       )}
-                      {isPost && <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-[#f472b6]/80 text-white text-[9px]">帖子</div>}
                       <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] flex items-center gap-0.5">
                         {s.type === 'video' ? '▶' : '🖼'} {(s.views || 0).toLocaleString()}
                       </div>
