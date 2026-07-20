@@ -53,8 +53,16 @@ export default function PostDetailPage() {
         if (err) { setError(err.message); setLoading(false); return; }
         if (!data) { setError('作品不存在'); setLoading(false); return; }
         setPost(data as Short);
+        // 查创作者 + 其 profile(头像/封面)
         supabase.from('creators').select('*').eq('id', data.creator_id).maybeSingle()
-          .then(({ data: c }) => setCreator(c));
+          .then(async ({ data: c }) => {
+            if (c && c.owner_id) {
+              const { data: profile } = await supabase.from('profiles').select('avatar_url, cover_url').eq('id', c.owner_id).maybeSingle();
+              setCreator({ ...c, avatar_url: profile?.avatar_url || null, cover_url: profile?.cover_url || null });
+            } else {
+              setCreator(c);
+            }
+          });
         setLoading(false);
       });
     if (user) {
@@ -198,22 +206,40 @@ export default function PostDetailPage() {
         )}
       </div>
 
-      {/* 创作者信息 */}
+      {/* 创作者信息 + 封面背景 */}
       {creator && (
-        <Link href={`/creator/${creator.username}`} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02]">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ background: creator.avatar_color }}>
-            {creator.display_name[0]}
+        <Link href={`/creator/${creator.username}`} className="block">
+          {/* 封面背景 */}
+          <div className="relative h-24 overflow-hidden">
+            {creator.cover_url ? (
+              <img src={creator.cover_url} className="w-full h-full object-cover" alt="" />
+            ) : (
+              <div className="w-full h-full" style={{ background: creator.cover_color || creator.avatar_color || '#1a1a2e' }} />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-1">
-              <span className="font-bold text-[15px]">{creator.display_name}</span>
-              {creator.verified && <span className="text-[#f472b6] text-sm">✓</span>}
+          {/* 头像 + 名字 */}
+          <div className="flex items-center gap-3 px-4 py-3 -mt-8 relative z-10">
+            <div className="w-14 h-14 rounded-full overflow-hidden bg-black ring-2 ring-white/20 flex-shrink-0">
+              {creator.avatar_url ? (
+                <img src={creator.avatar_url} className="w-full h-full object-cover" alt="" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold" style={{ background: creator.avatar_color }}>
+                  {creator.display_name[0]}
+                </div>
+              )}
             </div>
-            <span className="text-white/60 text-xs">@{creator.username}</span>
+            <div className="flex-1 min-w-0 pt-3">
+              <div className="flex items-center gap-1">
+                <span className="font-bold text-[17px] truncate">{creator.display_name}</span>
+                {creator.verified && <span className="text-[#f472b6] text-sm flex-shrink-0">✓</span>}
+              </div>
+              <span className="text-white/60 text-xs">@{creator.username}</span>
+            </div>
+            <button className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#f472b6] to-[#db2777] text-white text-sm font-bold flex-shrink-0">
+              订阅
+            </button>
           </div>
-          <button className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#f472b6] to-[#db2777] text-white text-sm font-bold">
-            订阅
-          </button>
         </Link>
       )}
 

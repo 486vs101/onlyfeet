@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/use-auth';
 import { Heart, MessageCircle, Share2, Volume2, VolumeX, Music2 } from 'lucide-react';
 
+type Media = { url: string; duration: number };
+
 type Short = {
   id: string;
   creator_id: string;
@@ -23,7 +25,10 @@ type Short = {
   ppv_price?: number;
   media_url?: string;
   thumbnail_url?: string;
-  bgm_url?: string;
+  cover_url?: string | null;
+  bgm_url?: string | null;
+  images?: Media[] | null;
+  slide_duration?: number | null;
   created_at: string;
   bgm_title?: string;
   bgm_artist?: string;
@@ -31,8 +36,11 @@ type Short = {
     username: string;
     display_name: string;
     avatar_color: string;
+    avatar_url?: string | null;
+    cover_url?: string | null;
     verified: boolean;
     subscriber_count: number;
+    owner_id?: string;
   };
 };
 
@@ -65,6 +73,20 @@ export default function ShortsPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const touchStart = useRef<{ y: number; t: number } | null>(null);
 
+  // 图集自动轮播(当前视频)
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  useEffect(() => {
+    const s = shorts[index];
+    if (!s || s.type !== 'gallery') return;
+    const images = s.images || [];
+    if (images.length <= 1) { setGalleryIndex(0); return; }
+    const dur = (images[galleryIndex]?.duration || s.slide_duration || 3) * 1000;
+    const t = setTimeout(() => {
+      setGalleryIndex((i) => (i + 1) % images.length);
+    }, dur);
+    return () => clearTimeout(t);
+  }, [index, galleryIndex, shorts]);
+
   // 加载 + 排序
   useEffect(() => {
     const seen = JSON.parse(localStorage.getItem('seen_shorts') || '[]');
@@ -72,10 +94,26 @@ export default function ShortsPage() {
 
     supabase
       .from('shorts')
-      .select(`*, creator:creators(username, display_name, avatar_color, verified, subscriber_count)`)
-      .then(({ data }) => {
+      .select(`*, creator:creators(username, display_name, avatar_color, verified, subscriber_count, owner_id)`)
+      .then(async ({ data }) => {
         if (!data) return;
-        const ranked = [...data]
+        // 获取所有创作者的 profile(头像/封面)
+        const ownerIds = [...new Set(data.map(s => s.creator?.owner_id).filter(Boolean))];
+        const profileMap: Record<string, any> = {};
+        if (ownerIds.length > 0) {
+          const { data: profiles } = await supabase.from('profiles').select('id, avatar_url, cover_url').in('id', ownerIds);
+          (profiles || []).forEach(p => { profileMap[p.id] = p; });
+        }
+        // 合并 profile 数据到 creator
+        const enriched = data.map(s => ({
+          ...s,
+          creator: s.creator ? {
+            ...s.creator,
+            avatar_url: profileMap[s.creator.owner_id]?.avatar_url || null,
+            cover_url: profileMap[s.creator.owner_id]?.cover_url || null,
+          } : undefined,
+        }));
+        const ranked = [...enriched]
           .map(s => ({ ...s, score: rankScore(s, new Set(seen)) }))
           .sort((a, b) => b.score - a.score);
         // 同创作者间隔(避免连刷 3 条以上)
@@ -189,27 +227,60 @@ export default function ShortsPage() {
         <span className="text-white/70 text-sm">{index + 1} / {shorts.length}</span>
       </div>
 
-      {/* 视频区 */}
-      <div className="h-full w-full flex items-center justify-center" style={{ background: current.placeholder_color }}>
-        {current.media_url && current.type === 'video' ? (
-          <video
-            key={current.id}
-            src={current.media_url}
-            className="w-full h-full object-contain"
-            autoPlay
-            loop
-            muted={muted}
-            playsInline
-            onClick={() => setMuted(!muted)}
-          />
-        ) : current.media_url && current.type === 'gallery' ? (
-          <img src={current.media_url} className="w-full h-full object-contain" alt="" />
-        ) : (
-          <div className="text-center text-white/40">
-            <div className="text-6xl mb-2">{current.type === 'video' ? '▶' : '🖼'}</div>
-            <p className="text-sm">{current.type === 'video' ? `${current.duration_sec}秒 视频` : '图集'}</p>
-          </div>
-        )}
+      {/* 视频/图集区 */}
+      <div className="h-full w-full flex items-center justify-center bg-black">
+        {(() => {
+          const isGallery = current.type === 'gallery';
+          const galleryImgs = isGallery ? (current.images || []) : [];
+          
+          // 图集:多图轮播
+          if (isGallery && galleryImgs.length > 0) {
+            const imgUrl = galleryImgs[galleryIndex]?.url || '';
+            return (
+              <div className="relative w-full h-full">
+                {imgUrl ? (
+                  <img src={imgUrl} className="w-full h-full object-contain" alt="" />
+                ) : (
+                  <div className="text-center text-white/40"><div className="text-6xl mb-2">🖼</div><p className="text-sm">图集</p></div>
+                )}
+                {/* 图集进度条 */}
+                {galleryImgs.length > 1 && (
+                  <div className="absolute top-4 left-0 right-0 flex justify-center gap-1 z-30">
+                    {galleryImgs.map((_, i) => (
+                      <div key={i} className={`h-0.5 rounded-full transition-all ${i === galleryIndex ? 'w-8 bg-white' : 'w-4 bg-white/30'}`} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
+          
+          // 视频
+          if (current.media_url && current.type === 'video') {
+            return (
+              <video
+                key={current.id}
+                src={current.media_url}
+                className="w-full h-full object-contain"
+                autoPlay loop muted={muted} playsInline
+                onClick={() => setMuted(!muted)}
+              />
+            );
+          }
+          
+          // 单图(旧数据兼容)
+          if (current.media_url && current.type !== 'video') {
+            return <img src={current.media_url} className="w-full h-full object-contain" alt="" />;
+          }
+          
+          // 无媒体
+          return (
+            <div className="text-center text-white/40">
+              <div className="text-6xl mb-2">{current.type === 'video' ? '▶' : '🖼'}</div>
+              <p className="text-sm">{current.type === 'video' ? `${current.duration_sec}秒 视频` : '图集'}</p>
+            </div>
+          );
+        })()}
         {current.is_locked && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20 pointer-events-none">
             <div className="text-center">
@@ -255,8 +326,14 @@ export default function ShortsPage() {
       {/* 底部信息 */}
       <div className="absolute bottom-0 left-0 right-16 z-30 p-4 pb-6 bg-gradient-to-t from-black/80 to-transparent">
         <Link href={`/creator/${current.creator?.username}`} className="flex items-center gap-2 mb-3">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ background: current.creator?.avatar_color }}>
-            {current.creator?.display_name[0]}
+          <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white font-bold bg-black ring-2 ring-white/20">
+            {current.creator?.avatar_url ? (
+              <img src={current.creator.avatar_url} className="w-full h-full object-cover" alt="" />
+            ) : (
+              <span style={{ background: current.creator?.avatar_color, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {current.creator?.display_name[0]}
+              </span>
+            )}
           </div>
           <div>
             <div className="flex items-center gap-1">
