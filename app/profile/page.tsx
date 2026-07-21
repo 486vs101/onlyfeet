@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Sparkles, Plus, Edit3, X, Check, Camera, Image as ImageIcon, Heart, MessageCircle, Send } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
 import { supabase } from '@/lib/supabase';
+import { CommentSection } from '@/components/shared/comment-section';
 
 const AVATAR_COLORS = ['#f472b6', '#a78bfa', '#60a5fa', '#34d399', '#fbbf24', '#f87171', '#fb7185', '#c084fc'];
 const COVER_PRESETS = [
@@ -325,8 +326,6 @@ export default function ProfilePage() {
   const [workCommentCounts, setWorkCommentCounts] = useState<Record<string, number>>({});
   // 帖子评论
   const [openPostComment, setOpenPostComment] = useState<string | null>(null);
-  const [postComments, setPostComments] = useState<any[]>([]);
-  const [postCommentText, setPostCommentText] = useState('');
 
   // 编辑表单
   const [eName, setEName] = useState('');
@@ -507,21 +506,9 @@ export default function ProfilePage() {
     setPostLikeCounts(prev => ({ ...prev, [postId]: (prev[postId] || 0) + (isLiking ? 1 : -1) }));
   };
 
-  const togglePostComments = async (postId: string) => {
+  const togglePostComments = (postId: string) => {
     if (!user) { window.location.href = '/login'; return; }
-    if (openPostComment === postId) { setOpenPostComment(null); return; }
-    setOpenPostComment(postId);
-    const { data } = await supabase.from('comments').select('*, profiles!comments_user_id_fkey(display_name, avatar_url, avatar_color)').eq('post_id', postId).order('created_at', { ascending: false }).limit(30);
-    setPostComments(data || []);
-  };
-
-  const submitPostComment = async (postId: string) => {
-    if (!postCommentText.trim() || !user) return;
-    await supabase.from('comments').insert({ user_id: user.id, post_id: postId, content: postCommentText.trim() });
-    setPostCommentText('');
-    setPostCommentCounts(prev => ({ ...prev, [postId]: (prev[postId]||0) + 1 }));
-    const { data } = await supabase.from('comments').select('*, profiles!comments_user_id_fkey(display_name, avatar_url, avatar_color)').eq('post_id', postId).order('created_at', { ascending: false }).limit(30);
-    setPostComments(data || []);
+    setOpenPostComment(openPostComment === postId ? null : postId);
   };
 
   const renderAvatar = (size: number, url?: string | null, color?: string, name?: string) => {
@@ -666,23 +653,7 @@ export default function ProfilePage() {
                       {/* 评论区 */}
                       {openPostComment === p.id && (
                         <div className="mt-3 pt-3 border-t border-white/5">
-                          <div className="flex items-center gap-2 mb-2">
-                            <input value={postCommentText} onChange={e => setPostCommentText(e.target.value)} onKeyDown={e => e.key === 'Enter' && submitPostComment(p.id)} placeholder="说点什么..."
-                              className="flex-1 bg-white/5 rounded-full px-3 py-1.5 text-white text-xs outline-none placeholder:text-white/30" />
-                            <button onClick={() => submitPostComment(p.id)} disabled={!postCommentText.trim()} className="text-[#f472b6] disabled:text-white/20"><Send className="w-4 h-4" /></button>
-                          </div>
-                          {postComments.length === 0 ? <p className="text-white/30 text-xs text-center py-2">暂无评论</p> :
-                            postComments.map((c: any) => (
-                              <div key={c.id} className="flex gap-2 mb-2">
-                                <div className="w-6 h-6 rounded-full overflow-hidden bg-white/10 flex-shrink-0 flex items-center justify-center text-[10px] font-bold" style={{ background: c.profiles?.avatar_color }}>
-                                  {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" alt="" /> : c.profiles?.display_name?.[0] || '?'}
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-1"><span className="text-white text-[11px] font-bold">{c.profiles?.display_name || '用户'}</span><span className="text-white/30 text-[9px]">{new Date(c.created_at).toLocaleDateString()}</span></div>
-                                  <p className="text-white/70 text-[11px]">{c.content}</p>
-                                </div>
-                              </div>
-                            ))}
+                          <CommentSection targetId={p.id} fk="post_id" userId={user?.id} onCountChange={(d) => setPostCommentCounts(prev => ({ ...prev, [p.id]: (prev[p.id]||0) + d }))} />
                         </div>
                       )}
                     </div>
