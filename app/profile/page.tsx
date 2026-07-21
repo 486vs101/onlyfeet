@@ -313,6 +313,8 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'works' | 'posts' | 'likes' | 'bookmarks'>('works');
   const [likedItems, setLikedItems] = useState<any[]>([]);
+  const [likedPostItems, setLikedPostItems] = useState<any[]>([]);
+  const [likeFilter, setLikeFilter] = useState<'works' | 'posts'>('works');
   const [bookmarkedItems, setBookmarkedItems] = useState<any[]>([]);
   // 帖子点赞状态
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
@@ -386,14 +388,25 @@ export default function ProfilePage() {
             }
           });
       });
-    // 喜欢的作品
-    supabase.from('likes').select('short_id, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
+    // 喜欢的作品(短视频)
+    supabase.from('likes').select('short_id, created_at').eq('user_id', user.id).not('short_id', 'is', null).order('created_at', { ascending: false }).limit(50)
       .then(async ({ data: likes }) => {
-        if (!likes || likes.length === 0) return setLikedItems([]);
-        const ids = likes.map(l => l.short_id);
-        const { data: shorts } = await supabase.from('shorts').select('*').in('id', ids);
-        const shortMap: Record<string, any> = {}; (shorts || []).forEach(s => { shortMap[s.id] = s; });
-        setLikedItems(likes.map(l => shortMap[l.short_id]).filter(Boolean));
+        if (!likes || likes.length === 0) { setLikedItems([]); } else {
+          const ids = likes.map(l => l.short_id);
+          const { data: shorts } = await supabase.from('shorts').select('*').in('id', ids);
+          const shortMap: Record<string, any> = {}; (shorts || []).forEach(s => { shortMap[s.id] = s; });
+          setLikedItems(likes.map(l => shortMap[l.short_id]).filter(Boolean));
+        }
+      });
+    // 喜欢的帖子
+    supabase.from('likes').select('post_id, created_at').eq('user_id', user.id).not('post_id', 'is', null).order('created_at', { ascending: false }).limit(50)
+      .then(async ({ data: likes }) => {
+        if (!likes || likes.length === 0) { setLikedPostItems([]); } else {
+          const ids = likes.map(l => l.post_id);
+          const { data: posts } = await supabase.from('posts').select('*').in('id', ids);
+          const map: Record<string, any> = {}; (posts || []).forEach(p => { map[p.id] = p; });
+          setLikedPostItems(likes.map(l => map[l.post_id]).filter(Boolean));
+        }
       });
     // 收藏的作品
     supabase.from('bookmarks').select('short_id, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
@@ -587,7 +600,27 @@ export default function ProfilePage() {
 
         <div className="mt-2">
           {(() => {
-            const items = activeTab === 'works' ? myShorts : activeTab === 'posts' ? myPosts : activeTab === 'likes' ? likedItems : bookmarkedItems;
+            // 喜欢 tab 有子分类
+            if (activeTab === 'likes') {
+              const items = likeFilter === 'works' ? likedItems : likedPostItems;
+              const isFeed = likeFilter === 'posts'; // 帖子用 feed 样式
+              return (
+                <>
+                  <div className="flex gap-2 px-4 pt-3 pb-2">
+                    <button onClick={() => setLikeFilter('works')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${likeFilter === 'works' ? 'bg-[#f472b6] text-white' : 'bg-white/5 text-white/60'}`}>短视频</button>
+                    <button onClick={() => setLikeFilter('posts')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${likeFilter === 'posts' ? 'bg-[#f472b6] text-white' : 'bg-white/5 text-white/60'}`}>帖子</button>
+                  </div>
+                  {items.length === 0 ? <p className="text-white/30 text-sm text-center py-12">{likeFilter === 'works' ? '还没有喜欢任何作品' : '还没有喜欢任何帖子'}</p> :
+                    isFeed ? (
+                      <div className="divide-y divide-white/5">{items.map(p => (<div key={p.id} className="p-4"><p className="text-sm mb-2">{p.caption}</p>{p.hashtags?.length>0 && <p className="text-[#f472b6] text-xs mb-2">{p.hashtags.map((h:string) => '#'+h).join(' ')}</p>}{p.media_url && (p.type==='video' ? <video src={p.media_url} className="w-full max-h-60 object-contain rounded-xl" controls preload="metadata" /> : <img src={p.media_url} className="w-full max-h-60 object-contain rounded-xl" alt="" />)}<div className="text-white/40 text-xs mt-2">{p.created_at ? new Date(p.created_at).toLocaleDateString() : ''}</div></div>))}</div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-0.5">{items.map(s => { const cv = s.cover_url || s.thumbnail_url || (s.images?.[0]?.url) || s.media_url; return <Link key={s.id} href={`/post/${s.id}`} className="aspect-[3/4] overflow-hidden bg-black">{cv ? (s.type==='video'&&!s.cover_url&&!s.thumbnail_url ? <video src={cv} className="w-full h-full object-cover" muted /> : <img src={cv} className="w-full h-full object-cover" alt="" />) : <div className="w-full h-full flex items-center justify-center text-white/20 text-xs">无媒体</div>}</Link>; })}</div>
+                    )}
+                </>
+              );
+            }
+
+            const items = activeTab === 'works' ? myShorts : activeTab === 'posts' ? myPosts : bookmarkedItems;
             const isEmpty = items.length === 0;
             const emptyMsg = {works: profile?.is_creator ? '还没有发布作品' : '成为创作者后可以发布作品', posts: '还没有发布帖子', likes: '还没有喜欢任何作品', bookmarks: '还没有收藏任何作品'}[activeTab];
 
