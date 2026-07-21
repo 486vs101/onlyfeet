@@ -37,7 +37,7 @@ export function RightPanel() {
       const sorted = Object.entries(counts)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 8)
-        .map(([tag, count]) => ({ tag, posts: count >= 1000 ? (count/1000).toFixed(1) + 'K 条' : `${count} 条` }));
+        .map(([tag, count]) => ({ tag, posts: count >= 1000 ? (count/1000).toFixed(1) + 'K' : String(count) }));
       setTrending(sorted.length > 0 ? sorted : []);
     });
   }, []);
