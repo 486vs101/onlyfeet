@@ -19,22 +19,27 @@ export function RightPanel() {
     supabase.from('creators').select('*').order('subscriber_count', { ascending: false }).limit(4)
       .then(({ data }) => { if (data) setCreators(data); });
 
-    // Aggregate hashtags from real posts/shorts
-    supabase.from('shorts').select('hashtags')
-      .then(({ data: shortsData }) => {
-        if (!shortsData) return;
-        const counts: Record<string, number> = {};
-        shortsData.forEach((row: any) => {
+    // Aggregate hashtags from shorts AND posts
+    Promise.all([
+      supabase.from('shorts').select('hashtags'),
+      supabase.from('posts').select('hashtags'),
+    ]).then(([shortsData, postsData]) => {
+      const counts: Record<string, number> = {};
+      const process = (rows: any[]) => {
+        rows?.forEach((row: any) => {
           (row.hashtags || []).forEach((tag: string) => {
             counts[tag] = (counts[tag] || 0) + 1;
           });
         });
-        const sorted = Object.entries(counts)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 5)
-          .map(([tag, count]) => ({ tag, posts: count >= 1000 ? (count/1000).toFixed(1) + 'K' : String(count) }));
-        setTrending(sorted);
-      });
+      };
+      process(shortsData?.data || []);
+      process(postsData?.data || []);
+      const sorted = Object.entries(counts)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 8)
+        .map(([tag, count]) => ({ tag, posts: count >= 1000 ? (count/1000).toFixed(1) + 'K 条' : `${count} 条` }));
+      setTrending(sorted.length > 0 ? sorted : []);
+    });
   }, []);
 
   return (
