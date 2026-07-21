@@ -291,7 +291,6 @@ export default function PostDetailPage() {
         </button>
         <button onClick={() => navigator.clipboard?.writeText(window.location.href)} className="flex items-center gap-1.5 text-white/80 hover:text-white">
           <Share2 className="w-5 h-5" />
-          <span className="text-sm">{post.shares}</span>
         </button>
       </div>
 

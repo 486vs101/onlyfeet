@@ -339,7 +339,6 @@ export default function ShortsPage() {
         </button>
         <button onClick={() => setShowShare(true)} className="flex flex-col items-center">
           <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center"><Share2 className="w-6 h-6 text-white" /></div>
-          <span className="text-white text-[11px] mt-1">{current.shares}</span>
         </button>
         <button onClick={() => toggleBookmark(current)} className="flex flex-col items-center">
           <div className={`w-12 h-12 rounded-full flex items-center justify-center ${bookmarked.has(current.id) ? 'bg-[#fbbf24]/20' : 'bg-white/10'}`}>
