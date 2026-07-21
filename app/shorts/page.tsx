@@ -167,6 +167,12 @@ export default function ShortsPage() {
     touchStart.current = null;
   };
 
+  // Mouse wheel
+  const onWheel = (e: React.WheelEvent) => {
+    if (Math.abs(e.deltaY) < 20) return;
+    goTo(index + (e.deltaY > 0 ? 1 : -1));
+  };
+
   // Double click for desktop
   const lastClick = useRef(0);
   const onClick = (e: React.MouseEvent) => {
@@ -249,7 +255,7 @@ export default function ShortsPage() {
   const galleryImgs = isGallery ? (current.images || []) : [];
 
   return (
-    <div ref={containerRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onClick={onClick}
+    <div ref={containerRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onClick={onClick} onWheel={onWheel}
       className="h-screen w-full bg-black overflow-hidden relative select-none">
       {/* Top */}
       <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-3" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)' }}>
