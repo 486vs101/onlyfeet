@@ -238,7 +238,7 @@ export default function PostDetailPage() {
               {creator.avatar_url ? (
                 <img src={creator.avatar_url} className="w-full h-full object-cover" alt="" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold" style={{ background: creator.avatar_color }}>
+                <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold bg-zinc-800">
                   {creator.display_name[0]}
                 </div>
               )}
