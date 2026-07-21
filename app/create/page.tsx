@@ -327,8 +327,6 @@ export default function CreatePage() {
           caption: postBody || caption,
           hashtags: tags,
           placeholder_color: '#000000',
-          cover_url: coverUrl || null,
-          thumbnail_url: coverUrl || null,
           media_url: mediaUrl || null,
           images: galleryJson || [],
           slide_duration: galleryItems[0]?.duration || 3,
@@ -381,10 +379,11 @@ export default function CreatePage() {
           </button>
         </div>
 
-        {/* 封面图(两个类型都可用) */}
+        {/* 封面图(仅作品) */}
+        {publishType === 'short' && (
         <div className="mb-5">
           <label className="block text-sm font-medium mb-2 text-white/80">
-            {publishType === 'post' ? '帖子封面' : '作品封面'}
+            作品封面
             <span className="text-white/40 text-xs ml-1">(独立上传,可裁切)</span>
           </label>
           {coverUrl ? (
@@ -402,6 +401,7 @@ export default function CreatePage() {
           )}
           <input ref={coverInput} type="file" accept="image/*" onChange={(e) => handleCoverSelect(e.target.files?.[0] || null)} className="hidden" />
         </div>
+        )}
 
         {/* 媒体区 - 作品和帖子都可选择 */}
         {publishType === 'short' && (
