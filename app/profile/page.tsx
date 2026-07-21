@@ -318,6 +318,9 @@ export default function ProfilePage() {
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [postLikeCounts, setPostLikeCounts] = useState<Record<string, number>>({});
   const [postCommentCounts, setPostCommentCounts] = useState<Record<string, number>>({});
+  // 作品网格计数
+  const [workLikeCounts, setWorkLikeCounts] = useState<Record<string, number>>({});
+  const [workCommentCounts, setWorkCommentCounts] = useState<Record<string, number>>({});
 
   // 编辑表单
   const [eName, setEName] = useState('');
@@ -345,7 +348,21 @@ export default function ProfilePage() {
         // 作品
         supabase.from('shorts').select('*').eq('creator_id', data.id)
           .order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
-          .then(({ data: s }) => setMyShorts(s || []));
+          .then(({ data: s }) => {
+            setMyShorts(s || []);
+            // 加载作品真实点赞/评论数
+            if (s && s.length > 0) {
+              const ids = s.map(x => x.id);
+              Promise.all([
+                supabase.from('likes').select('short_id').in('short_id', ids),
+                supabase.from('comments').select('short_id').in('short_id', ids),
+              ]).then(([l, c]) => {
+                const lc: Record<string, number> = {}; (l.data || []).forEach(x => { lc[x.short_id] = (lc[x.short_id]||0)+1; });
+                const cc: Record<string, number> = {}; (c.data || []).forEach(x => { cc[x.short_id] = (cc[x.short_id]||0)+1; });
+                setWorkLikeCounts(lc); setWorkCommentCounts(cc);
+              });
+            }
+          });
         // 帖子
         supabase.from('posts').select('*').eq('creator_id', data.id)
           .order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
@@ -599,7 +616,7 @@ export default function ProfilePage() {
                 {items.map((s: any) => {
                   const coverUrl = s.cover_url || s.thumbnail_url || (s.images?.[0]?.url) || s.media_url;
                   return (
-                    <Link key={s.id} href={`/post/${s.id}`} className="aspect-[3/4] relative overflow-hidden bg-black">
+                    <Link key={s.id} href={`/post/${s.id}`} className="aspect-[3/4] relative overflow-hidden bg-black group">
                       {coverUrl ? (
                         s.type === 'video' && !s.cover_url && !s.thumbnail_url ? (
                           <video src={coverUrl} className="w-full h-full object-cover" muted />
@@ -609,6 +626,13 @@ export default function ProfilePage() {
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-white/30 text-xs bg-black">无媒体</div>
                       )}
+                      {/* Hover overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1.5">
+                        <div className="flex items-center gap-2 text-white text-[10px]">
+                          <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{workLikeCounts[s.id] || 0}</span>
+                          <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" />{workCommentCounts[s.id] || 0}</span>
+                        </div>
+                      </div>
                       <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] flex items-center gap-0.5">
                         {s.type === 'video' ? '▶' : '🖼'} {(s.views || 0).toLocaleString()}
                       </div>
