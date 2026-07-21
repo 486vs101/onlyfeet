@@ -40,6 +40,7 @@ export default function PostDetailPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [post, setPost] = useState<Short | null>(null);
+  const [source, setSource] = useState<'short' | 'post'>('short'); // 数据来源
   const [creator, setCreator] = useState<any>(null);
   const [index, setIndex] = useState(0);
   const [liked, setLiked] = useState(false);
@@ -54,38 +55,51 @@ export default function PostDetailPage() {
 
   useEffect(() => {
     if (!id) return;
+    // 先查 shorts,再查 posts
     supabase.from('shorts').select('*').eq('id', id).maybeSingle()
-      .then(({ data, error: err }) => {
-        if (err) { setError(err.message); setLoading(false); return; }
-        if (!data) { setError('作品不存在'); setLoading(false); return; }
-        setPost(data as Short);
-        // 加载真实点赞数
-        supabase.from('likes').select('id').eq('short_id', id)
-          .then(({ count }) => {
-            if (count !== null) setPost(prev => prev ? { ...prev, likes: count } : prev);
+      .then(async ({ data, error: err }) => {
+        if (data) {
+          // 找到了,是作品
+          setSource('short');
+          setPost(data as Short);
+          supabase.from('likes').select('id').eq('short_id', id)
+            .then(({ count }) => { if (count !== null) setPost(prev => prev ? { ...prev, likes: count } : prev); });
+          supabase.from('creators').select('*').eq('id', data.creator_id).maybeSingle()
+            .then(async ({ data: c }) => {
+              if (c?.owner_id) { const { data: p } = await supabase.from('profiles').select('avatar_url, cover_url').eq('id', c.owner_id).maybeSingle(); setCreator({ ...c, avatar_url: p?.avatar_url, cover_url: p?.cover_url }); }
+              else setCreator(c);
+            });
+          setLoading(false);
+          return;
+        }
+        // 没找到,查 posts
+        supabase.from('posts').select('*').eq('id', id).maybeSingle()
+          .then(async ({ data: p, error: err2 }) => {
+            if (err2 || !p) { setError(err2?.message || '作品不存在'); setLoading(false); return; }
+            setSource('post');
+            setPost({ ...p, type: p.type || 'post_text', duration_sec: 0, views: 0, shares: 0, placeholder_color: '#000', hashtags: p.hashtags || [] } as any);
+            supabase.from('likes').select('id').eq('post_id', id)
+              .then(({ count }) => { if (count !== null) setPost(prev => prev ? { ...prev, likes: count } : prev); });
+            supabase.from('creators').select('*').eq('id', p.creator_id).maybeSingle()
+              .then(async ({ data: c }) => {
+                if (c?.owner_id) { const { data: prof } = await supabase.from('profiles').select('avatar_url, cover_url').eq('id', c.owner_id).maybeSingle(); setCreator({ ...c, avatar_url: prof?.avatar_url, cover_url: prof?.cover_url }); }
+                else setCreator(c);
+              });
+            setLoading(false);
           });
-        // 查创作者 + 其 profile(头像/封面)
-        supabase.from('creators').select('*').eq('id', data.creator_id).maybeSingle()
-          .then(async ({ data: c }) => {
-            if (c && c.owner_id) {
-              const { data: profile } = await supabase.from('profiles').select('avatar_url, cover_url').eq('id', c.owner_id).maybeSingle();
-              setCreator({ ...c, avatar_url: profile?.avatar_url || null, cover_url: profile?.cover_url || null });
-            } else {
-              setCreator(c);
-            }
-          });
-        setLoading(false);
       });
     if (user) {
-      supabase.from('likes').select('id').eq('user_id', user.id).eq('short_id', id).maybeSingle()
+      const fk = source === 'short' ? 'short_id' : 'post_id';
+      supabase.from('likes').select('id').eq('user_id', user.id).eq(fk, id).maybeSingle()
         .then(({ data }) => setLiked(!!data));
-      supabase.from('bookmarks').select('id').eq('user_id', user.id).eq('short_id', id).maybeSingle()
+      supabase.from('bookmarks').select('id').eq('user_id', user.id).eq(fk, id).maybeSingle()
         .then(({ data }) => setBookmarked(!!data));
     }
     // 加载评论
-    supabase.from('comments').select('*, profiles!comments_user_id_fkey(display_name, avatar_url, avatar_color)').eq('short_id', id).order('created_at', { ascending: false }).limit(30)
+    const fk = source === 'short' ? 'short_id' : 'post_id';
+    supabase.from('comments').select('*, profiles!comments_user_id_fkey(display_name, avatar_url, avatar_color)').eq(fk, id).order('created_at', { ascending: false }).limit(30)
       .then(({ data: c }) => { setCommentsList(c || []); setCommentCount(c?.length || 0); });
-  }, [id, user]);
+  }, [id, user, source]);
 
   // 图集自动轮播
   useEffect(() => {
@@ -101,32 +115,34 @@ export default function PostDetailPage() {
 
   const toggleLike = useCallback(async () => {
     if (!user || !post) { window.location.href = '/login'; return; }
+    const fk = source === 'short' ? 'short_id' : 'post_id';
     if (liked) {
-      await supabase.from('likes').delete().eq('user_id', user.id).eq('short_id', post.id);
+      await supabase.from('likes').delete().eq('user_id', user.id).eq(fk, post.id);
       setLiked(false);
     } else {
-      await supabase.from('likes').insert({ user_id: user.id, short_id: post.id });
+      await supabase.from('likes').insert({ user_id: user.id, [fk]: post.id });
       setLiked(true);
     }
-  }, [user, post, liked]);
+  }, [user, post, liked, source]);
 
   const toggleBookmark = useCallback(async () => {
     if (!user || !post) { window.location.href = '/login'; return; }
+    const fk = source === 'short' ? 'short_id' : 'post_id';
     if (bookmarked) {
-      await supabase.from('bookmarks').delete().eq('user_id', user.id).eq('short_id', post.id);
+      await supabase.from('bookmarks').delete().eq('user_id', user.id).eq(fk, post.id);
       setBookmarked(false);
     } else {
-      await supabase.from('bookmarks').insert({ user_id: user.id, short_id: post.id });
+      await supabase.from('bookmarks').insert({ user_id: user.id, [fk]: post.id });
       setBookmarked(true);
     }
-  }, [user, post, bookmarked]);
+  }, [user, post, bookmarked, source]);
 
   const postComment = async () => {
     if (!commentText.trim() || !user || !post) return;
-    await supabase.from('comments').insert({ user_id: user.id, short_id: post.id, content: commentText.trim() });
+    const fk = source === 'short' ? 'short_id' : 'post_id';
+    await supabase.from('comments').insert({ user_id: user.id, [fk]: post.id, content: commentText.trim() });
     setCommentText('');
-    // 重新加载评论
-    const { data: c } = await supabase.from('comments').select('*, profiles!comments_user_id_fkey(display_name, avatar_url, avatar_color)').eq('short_id', post.id).order('created_at', { ascending: false }).limit(30);
+    const { data: c } = await supabase.from('comments').select('*, profiles!comments_user_id_fkey(display_name, avatar_url, avatar_color)').eq(fk, post.id).order('created_at', { ascending: false }).limit(30);
     setCommentsList(c || []); setCommentCount(c?.length || 0);
   };
 
