@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Heart, MessageCircle, Share2, Lock, ArrowLeft, Music2, Trash2, Pin, Bookmark, Send } from 'lucide-react';
+import { CommentSection } from '@/components/shared/comment-section';
 import { useAuth } from '@/lib/use-auth';
 import { supabase } from '@/lib/supabase';
 
@@ -318,28 +319,8 @@ export default function PostDetailPage() {
       {/* 评论区 */}
       {showComments && (
         <div className="px-4 py-3 border-b border-white/5">
-          <div className="flex items-center gap-2 mb-3">
-            <input value={commentText} onChange={e => setCommentText(e.target.value)} onKeyDown={e => e.key === 'Enter' && postComment()} placeholder="说点什么..."
-              className="flex-1 bg-white/5 rounded-full px-4 py-2 text-white text-sm outline-none placeholder:text-white/30" />
-            <button onClick={postComment} disabled={!commentText.trim()} className="text-[#f472b6] disabled:text-white/20"><Send className="w-5 h-5" /></button>
-          </div>
-          <div className="space-y-3 max-h-60 overflow-y-auto">
-            {commentsList.length === 0 ? <p className="text-white/30 text-sm text-center py-4">暂无评论</p> :
-              commentsList.map((c: any) => (
-                <div key={c.id} className="flex gap-2">
-                  <div className="w-7 h-7 rounded-full overflow-hidden bg-white/10 flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ background: c.profiles?.avatar_color }}>
-                    {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" alt="" /> : c.profiles?.display_name?.[0] || '?'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-white text-xs font-bold">{c.profiles?.display_name || '用户'}</span>
-                      <span className="text-white/30 text-[10px]">{new Date(c.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <p className="text-white/80 text-xs mt-0.5">{c.content}</p>
-                  </div>
-                </div>
-              ))}
-          </div>
+          <CommentSection targetId={post.id} fk={source === 'short' ? 'short_id' : 'post_id'} userId={user?.id}
+            onCountChange={(d) => { setCommentCount(prev => prev + d); }} />
         </div>
       )}
     </div>

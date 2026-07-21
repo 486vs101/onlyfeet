@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/use-auth';
 import { Heart, MessageCircle, Share2, Volume2, VolumeX, Music2, X, Send, Link2, Twitter, Facebook, Bookmark } from 'lucide-react';
+import { CommentSection } from '@/components/shared/comment-section';
 
 type Media = { url: string; duration: number };
 
@@ -380,27 +381,12 @@ export default function ShortsPage() {
         <div className="absolute inset-0 z-50 flex flex-col bg-black/95">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
             <button onClick={() => setShowComments(false)}><X className="w-5 h-5 text-white" /></button>
-            <span className="text-white font-bold">{comments.length} 条评论</span>
+            <span className="text-white font-bold">评论</span>
             <div className="w-5" />
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
-            {commentLoading ? <p className="text-white/40 text-center py-8">加载中...</p> :
-              comments.length === 0 ? <p className="text-white/40 text-center py-8">暂无评论，来说点什么吧</p> :
-                comments.map((c: any) => (
-                  <div key={c.id} className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-white/10 flex-shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ background: c.profiles?.avatar_color }}>
-                      {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" alt="" /> : c.profiles?.display_name?.[0] || '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2"><span className="text-white text-sm font-bold">{c.profiles?.display_name || '用户'}</span><span className="text-white/30 text-xs">{new Date(c.created_at).toLocaleDateString()}</span></div>
-                      <p className="text-white/80 text-sm mt-0.5">{c.content}</p>
-                    </div>
-                  </div>
-                ))}
-          </div>
-          <div className="p-3 border-t border-white/10 flex items-center gap-2">
-            <input value={commentText} onChange={e => setCommentText(e.target.value)} onKeyDown={e => e.key === 'Enter' && postComment()} placeholder="说点什么..." className="flex-1 bg-white/5 rounded-full px-4 py-2 text-white text-sm outline-none placeholder:text-white/30" />
-            <button onClick={postComment} disabled={!commentText.trim()} className="text-[#f472b6] disabled:text-white/20"><Send className="w-5 h-5" /></button>
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            <CommentSection targetId={current.id} fk="short_id" userId={user?.id}
+              onCountChange={(d) => setShorts(prev => prev.map((s, i) => i === index ? { ...s, comments: s.comments + d } : s))} />
           </div>
         </div>
       )}
