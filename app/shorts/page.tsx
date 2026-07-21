@@ -127,7 +127,6 @@ export default function ShortsPage() {
             ...s,
             comments: commentCounts[s.id] || 0,
             likes: likeCounts[s.id] || 0,
-            shares: bookmarkCounts[s.id] || 0,
           })));
         }
       });
