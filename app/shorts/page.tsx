@@ -29,6 +29,9 @@ export default function ShortsPage() {
   const { user } = useAuth();
   const [shorts, setShorts] = useState<Short[]>([]);
   const [index, setIndex] = useState(0);
+  const [prevIndex, setPrevIndex] = useState(0);
+  const [slideDir, setSlideDir] = useState(0); // 1=下滑,-1=上滑,0=无
+  const [sliding, setSliding] = useState(false);
   const [muted, setMuted] = useState(true);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
@@ -128,9 +131,15 @@ export default function ShortsPage() {
   }, [index]);
 
   const goTo = useCallback((i: number) => {
-    if (i < 0 || i >= shorts.length) return;
-    setIndex(i); setGalleryIndex(0); setProgress(0);
-  }, [shorts.length]);
+    if (i < 0 || i >= shorts.length || sliding) return;
+    const dir = i > index ? 1 : -1;
+    setPrevIndex(index);
+    setSlideDir(dir);
+    setSliding(true);
+    setIndex(i);
+    setGalleryIndex(0); setProgress(0);
+    setTimeout(() => { setSliding(false); setSlideDir(0); }, 350);
+  }, [shorts.length, index, sliding]);
 
   // Touch handlers
   const onTouchStart = (e: React.TouchEvent) => {
@@ -248,8 +257,14 @@ export default function ShortsPage() {
         <span className="text-white/70 text-sm">{index + 1} / {shorts.length}</span>
       </div>
 
-      {/* Media */}
-      <div className="h-full w-full flex items-center justify-center bg-black">
+      {/* Media with slide transition */}
+      <div
+        className="h-full w-full flex items-center justify-center bg-black"
+        style={{
+          transform: sliding ? `translateY(${-slideDir * 100}%)` : 'translateY(0)',
+          transition: sliding ? 'transform 0.35s cubic-bezier(0.25, 0.1, 0.25, 1)' : 'none',
+        }}
+      >
         {isGallery && galleryImgs.length > 0 ? (
           <div className="relative w-full h-full">
             {galleryImgs[galleryIndex]?.url ? (
