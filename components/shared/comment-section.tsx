@@ -49,9 +49,9 @@ export function CommentItem({ c, fk, targetId, userId, onRefresh }: {
         <p className="text-white/80 text-xs mt-0.5">{c.content}</p>
         <div className="flex items-center gap-3 mt-1">
           <button onClick={() => setShowReply(!showReply)} className="text-white/30 text-[10px] hover:text-white/60">回复</button>
-          {(replyCount > 0 || c.reply_count > 0) && !showReplies && (
+          {!showReplies && (
             <button onClick={loadReplies} className="text-white/30 text-[10px] hover:text-white/60">
-              查看 {replyCount || c.reply_count || 0} 条回复
+              {replyCount > 0 ? `查看 ${replyCount} 条回复` : '查看回复'}
             </button>
           )}
           {showReplies && (
