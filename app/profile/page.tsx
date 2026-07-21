@@ -333,21 +333,20 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    if (profile?.is_creator) {
-      supabase.from('creators').select('*').eq('owner_id', user.id).single()
-        .then(({ data }) => {
-          if (!data) return;
-          setMyCreator(data);
-          // 作品
-          supabase.from('shorts').select('*').eq('creator_id', data.id)
-            .order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
-            .then(({ data: s }) => setMyShorts(s || []));
-          // 帖子
-          supabase.from('posts').select('*').eq('creator_id', data.id)
-            .order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
-            .then(({ data: p }) => setMyPosts(p || []));
-        });
-    }
+    // 查创作者行(无论 is_creator,用户发布内容时自动创建)
+    supabase.from('creators').select('*').eq('owner_id', user.id).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        setMyCreator(data);
+        // 作品
+        supabase.from('shorts').select('*').eq('creator_id', data.id)
+          .order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
+          .then(({ data: s }) => setMyShorts(s || []));
+        // 帖子
+        supabase.from('posts').select('*').eq('creator_id', data.id)
+          .order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
+          .then(({ data: p }) => setMyPosts(p || []));
+      });
     // 喜欢的作品
     supabase.from('likes').select('short_id, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
       .then(async ({ data: likes }) => {
@@ -522,6 +521,34 @@ export default function ProfilePage() {
             const emptyMsg = {works: profile?.is_creator ? '还没有发布作品' : '成为创作者后可以发布作品', posts: '还没有发布帖子', likes: '还没有喜欢任何作品', bookmarks: '还没有收藏任何作品'}[activeTab];
 
             if (isEmpty) return <p className="text-white/30 text-sm text-center py-12">{emptyMsg}</p>;
+
+            // 帖子用 feed 样式,其余用封面网格
+            if (activeTab === 'posts') {
+              return (
+                <div className="divide-y divide-white/5">
+                  {items.map((p: any) => (
+                    <div key={p.id} className="p-4">
+                      <p className="text-sm whitespace-pre-wrap mb-3">{p.caption}</p>
+                      {p.hashtags?.length > 0 && <p className="text-[#f472b6] text-xs mb-2">{p.hashtags.map((h: string) => `#${h}`).join(' ')}</p>}
+                      {(p.cover_url || p.media_url) && (
+                        <div className="rounded-xl overflow-hidden bg-black mb-3">
+                          {p.type === 'video' ? (
+                            <video src={p.media_url} className="w-full max-h-80 object-contain" controls preload="metadata" />
+                          ) : (
+                            <img src={p.cover_url || p.media_url} className="w-full max-h-80 object-contain" alt="" />
+                          )}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-4 text-white/40 text-xs">
+                        <span>{p.likes || 0} 赞</span>
+                        <span>{p.comments || 0} 评论</span>
+                        <span>{p.created_at ? new Date(p.created_at).toLocaleDateString() : ''}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            }
 
             return (
               <div className="grid grid-cols-3 gap-0.5">
