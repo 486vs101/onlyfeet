@@ -109,6 +109,23 @@ export default function ShortsPage() {
           spaced.push(s); lc[s.creator_id] = (lc[s.creator_id] || 0) + 1;
         }
         setShorts(spaced);
+        // 拉取真实评论数和点赞数
+        const ids = spaced.map(s => s.id);
+        if (ids.length > 0) {
+          const [{ data: realComments }, { data: realLikes }] = await Promise.all([
+            supabase.from('comments').select('short_id').in('short_id', ids),
+            supabase.from('likes').select('short_id').in('short_id', ids),
+          ]);
+          const commentCounts: Record<string, number> = {};
+          (realComments || []).forEach((c: any) => { commentCounts[c.short_id] = (commentCounts[c.short_id] || 0) + 1; });
+          const likeCounts: Record<string, number> = {};
+          (realLikes || []).forEach((l: any) => { likeCounts[l.short_id] = (likeCounts[l.short_id] || 0) + 1; });
+          setShorts(prev => prev.map(s => ({
+            ...s,
+            comments: commentCounts[s.id] || 0,
+            likes: likeCounts[s.id] || 0,
+          })));
+        }
       });
     if (user) {
       supabase.from('likes').select('short_id').eq('user_id', user.id).then(({ data }) => {
