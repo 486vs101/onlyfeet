@@ -228,7 +228,7 @@ export default function PostDetailPage() {
             {creator.cover_url ? (
               <img src={creator.cover_url} className="w-full h-full object-cover" alt="" />
             ) : (
-              <div className="w-full h-full" style={{ background: creator.cover_color || creator.avatar_color || '#1a1a2e' }} />
+              <div className="w-full h-full bg-black" />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           </div>
