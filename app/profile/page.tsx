@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { Sparkles, Plus, Edit3, X, Check, Camera, Image as ImageIcon } from 'lucide-react';
+import { Sparkles, Plus, Edit3, X, Check, Camera, Image as ImageIcon, Heart, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
 import { supabase } from '@/lib/supabase';
 
@@ -314,6 +314,10 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<'works' | 'posts' | 'likes' | 'bookmarks'>('works');
   const [likedItems, setLikedItems] = useState<any[]>([]);
   const [bookmarkedItems, setBookmarkedItems] = useState<any[]>([]);
+  // 帖子点赞状态
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [postLikeCounts, setPostLikeCounts] = useState<Record<string, number>>({});
+  const [postCommentCounts, setPostCommentCounts] = useState<Record<string, number>>({});
 
   // 编辑表单
   const [eName, setEName] = useState('');
@@ -345,7 +349,21 @@ export default function ProfilePage() {
         // 帖子
         supabase.from('posts').select('*').eq('creator_id', data.id)
           .order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
-          .then(({ data: p }) => setMyPosts(p || []));
+          .then(({ data: p }) => {
+            setMyPosts(p || []);
+            // 加载帖子真实点赞/评论数
+            if (p && p.length > 0) {
+              const ids = p.map(x => x.id);
+              Promise.all([
+                supabase.from('likes').select('post_id').in('post_id', ids),
+                supabase.from('comments').select('post_id').in('post_id', ids),
+              ]).then(([l, c]) => {
+                const lc: Record<string, number> = {}; (l.data || []).forEach((x: any) => { lc[x.post_id] = (lc[x.post_id] || 0) + 1; });
+                const cc: Record<string, number> = {}; (c.data || []).forEach((x: any) => { cc[x.post_id] = (cc[x.post_id] || 0) + 1; });
+                setPostLikeCounts(lc); setPostCommentCounts(cc);
+              });
+            }
+          });
       });
     // 喜欢的作品
     supabase.from('likes').select('short_id, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
@@ -438,6 +456,21 @@ export default function ProfilePage() {
     });
     setSaving(false);
     setEditing(false);
+  };
+
+  const togglePostLike = async (postId: string) => {
+    if (!user) { window.location.href = '/login'; return; }
+    const next = new Set(likedPosts);
+    const isLiking = !next.has(postId);
+    if (isLiking) {
+      next.add(postId);
+      await supabase.from('likes').insert({ user_id: user.id, post_id: postId });
+    } else {
+      next.delete(postId);
+      await supabase.from('likes').delete().eq('user_id', user.id).eq('post_id', postId);
+    }
+    setLikedPosts(next);
+    setPostLikeCounts(prev => ({ ...prev, [postId]: (prev[postId] || 0) + (isLiking ? 1 : -1) }));
   };
 
   const renderAvatar = (size: number, url?: string | null, color?: string, name?: string) => {
@@ -548,8 +581,11 @@ export default function ProfilePage() {
                         </div>
                       )}
                       <div className="flex items-center gap-4 text-white/40 text-xs">
-                        <span>{p.likes || 0} 赞</span>
-                        <span>{p.comments || 0} 评论</span>
+                        <button onClick={() => togglePostLike(p.id)} className="flex items-center gap-1 hover:text-white">
+                          <Heart className={`w-3.5 h-3.5 ${likedPosts.has(p.id) ? 'fill-[#f472b6] text-[#f472b6]' : ''}`} />
+                          <span>{postLikeCounts[p.id] || 0}</span>
+                        </button>
+                        <span className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" />{postCommentCounts[p.id] || 0}</span>
                         <span>{p.created_at ? new Date(p.created_at).toLocaleDateString() : ''}</span>
                       </div>
                     </div>
