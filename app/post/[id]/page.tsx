@@ -59,6 +59,11 @@ export default function PostDetailPage() {
         if (err) { setError(err.message); setLoading(false); return; }
         if (!data) { setError('作品不存在'); setLoading(false); return; }
         setPost(data as Short);
+        // 加载真实点赞数
+        supabase.from('likes').select('id').eq('short_id', id)
+          .then(({ count }) => {
+            if (count !== null) setPost(prev => prev ? { ...prev, likes: count } : prev);
+          });
         // 查创作者 + 其 profile(头像/封面)
         supabase.from('creators').select('*').eq('id', data.creator_id).maybeSingle()
           .then(async ({ data: c }) => {
