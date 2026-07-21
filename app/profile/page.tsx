@@ -530,13 +530,21 @@ export default function ProfilePage() {
                     <div key={p.id} className="p-4">
                       <p className="text-sm whitespace-pre-wrap mb-3">{p.caption}</p>
                       {p.hashtags?.length > 0 && <p className="text-[#f472b6] text-xs mb-2">{p.hashtags.map((h: string) => `#${h}`).join(' ')}</p>}
-                      {(p.cover_url || p.media_url) && (
+                      {p.media_url && (
                         <div className="rounded-xl overflow-hidden bg-black mb-3">
                           {p.type === 'video' ? (
                             <video src={p.media_url} className="w-full max-h-80 object-contain" controls preload="metadata" />
                           ) : (
-                            <img src={p.cover_url || p.media_url} className="w-full max-h-80 object-contain" alt="" />
+                            <img src={p.media_url} className="w-full max-h-80 object-contain" alt="" />
                           )}
+                        </div>
+                      )}
+                      {/* 图集 */}
+                      {p.images?.length > 0 && !p.media_url && (
+                        <div className="grid grid-cols-2 gap-1 mb-3 rounded-xl overflow-hidden">
+                          {p.images.map((img: any, i: number) => (
+                            <img key={i} src={img.url} className="w-full max-h-40 object-contain bg-black" alt="" />
+                          ))}
                         </div>
                       )}
                       <div className="flex items-center gap-4 text-white/40 text-xs">
