@@ -237,6 +237,8 @@ export default function ShortsPage() {
     await supabase.from('comments').insert({ user_id: user.id, short_id: c.id, content: commentText.trim() });
     setCommentText('');
     loadComments();
+    // 更新页面上显示的评论数
+    setShorts(prev => prev.map((s, i) => i === index ? { ...s, comments: s.comments + 1 } : s));
   };
 
   // Progress bar drag

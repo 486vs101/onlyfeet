@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, MessageCircle, Share2, Lock, ArrowLeft, Music2, Trash2, Pin, Bookmark } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Lock, ArrowLeft, Music2, Trash2, Pin, Bookmark, Send } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
 import { supabase } from '@/lib/supabase';
 
@@ -46,6 +46,11 @@ export default function PostDetailPage() {
   const [bookmarked, setBookmarked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // 评论
+  const [commentsList, setCommentsList] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [commentCount, setCommentCount] = useState(0);
+  const [showComments, setShowComments] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -72,6 +77,9 @@ export default function PostDetailPage() {
       supabase.from('bookmarks').select('id').eq('user_id', user.id).eq('short_id', id).maybeSingle()
         .then(({ data }) => setBookmarked(!!data));
     }
+    // 加载评论
+    supabase.from('comments').select('*, profiles!comments_user_id_fkey(display_name, avatar_url, avatar_color)').eq('short_id', id).order('created_at', { ascending: false }).limit(30)
+      .then(({ data: c }) => { setCommentsList(c || []); setCommentCount(c?.length || 0); });
   }, [id, user]);
 
   // 图集自动轮播
@@ -107,6 +115,15 @@ export default function PostDetailPage() {
       setBookmarked(true);
     }
   }, [user, post, bookmarked]);
+
+  const postComment = async () => {
+    if (!commentText.trim() || !user || !post) return;
+    await supabase.from('comments').insert({ user_id: user.id, short_id: post.id, content: commentText.trim() });
+    setCommentText('');
+    // 重新加载评论
+    const { data: c } = await supabase.from('comments').select('*, profiles!comments_user_id_fkey(display_name, avatar_url, avatar_color)').eq('short_id', post.id).order('created_at', { ascending: false }).limit(30);
+    setCommentsList(c || []); setCommentCount(c?.length || 0);
+  };
 
   // 删除作品(只有创作者本人)
   const handleDelete = async () => {
@@ -265,9 +282,9 @@ export default function PostDetailPage() {
           <Heart className={`w-5 h-5 ${liked ? 'fill-[#f472b6] text-[#f472b6]' : ''}`} />
           <span className="text-sm">{post.likes + (liked ? 1 : 0)}</span>
         </button>
-        <button className="flex items-center gap-1.5 text-white/80 hover:text-white">
+        <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-1.5 text-white/80 hover:text-white">
           <MessageCircle className="w-5 h-5" />
-          <span className="text-sm">{post.comments}</span>
+          <span className="text-sm">{commentCount}</span>
         </button>
         <button onClick={toggleBookmark} className="flex items-center gap-1.5 text-white/80 hover:text-white">
           <Bookmark className={`w-5 h-5 ${bookmarked ? 'fill-[#f472b6] text-[#f472b6]' : ''}`} />
@@ -277,6 +294,34 @@ export default function PostDetailPage() {
           <span className="text-sm">{post.shares}</span>
         </button>
       </div>
+
+      {/* 评论区 */}
+      {showComments && (
+        <div className="px-4 py-3 border-b border-white/5">
+          <div className="flex items-center gap-2 mb-3">
+            <input value={commentText} onChange={e => setCommentText(e.target.value)} onKeyDown={e => e.key === 'Enter' && postComment()} placeholder="说点什么..."
+              className="flex-1 bg-white/5 rounded-full px-4 py-2 text-white text-sm outline-none placeholder:text-white/30" />
+            <button onClick={postComment} disabled={!commentText.trim()} className="text-[#f472b6] disabled:text-white/20"><Send className="w-5 h-5" /></button>
+          </div>
+          <div className="space-y-3 max-h-60 overflow-y-auto">
+            {commentsList.length === 0 ? <p className="text-white/30 text-sm text-center py-4">暂无评论</p> :
+              commentsList.map((c: any) => (
+                <div key={c.id} className="flex gap-2">
+                  <div className="w-7 h-7 rounded-full overflow-hidden bg-white/10 flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ background: c.profiles?.avatar_color }}>
+                    {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" alt="" /> : c.profiles?.display_name?.[0] || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-white text-xs font-bold">{c.profiles?.display_name || '用户'}</span>
+                      <span className="text-white/30 text-[10px]">{new Date(c.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <p className="text-white/80 text-xs mt-0.5">{c.content}</p>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
