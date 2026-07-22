@@ -70,7 +70,7 @@ export default function CreatePage() {
     );
   }
 
-  const isCreator = profile?.is_creator || !!myCreator;
+  const isCreator = true;
 
   // 媒体上传器(视频/图集共用)
   const renderMediaUploader = () => {

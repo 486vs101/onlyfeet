@@ -7,11 +7,19 @@ import { ArrowLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { CreatorHero } from '@/components/creator/creator-hero';
 import { CreatorTabs } from '@/components/creator/creator-tabs';
+import { TierEditor } from '@/components/creator/tier-editor';
+import { TierDisplay } from '@/components/creator/tier-display';
+import { useAuth } from '@/lib/use-auth';
+
+type Tier = { name: string; price: number; badge: string; perks: string[] };
 
 export default function CreatorPage() {
   const params = useParams();
   const username = params?.username as string;
+  const { user, profile } = useAuth();
   const [creator, setCreator] = useState<any>(null);
+  const [tiers, setTiers] = useState<Tier[]>([]);
+  const [showTierEditor, setShowTierEditor] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,7 +28,6 @@ export default function CreatorPage() {
       .then(async ({ data, error }) => {
         if (error) { console.error('Supabase error:', error); setLoading(false); return; }
         if (!data) { setLoading(false); return; }
-        // 联查 profile 获取真实头像/封面
         let avatarUrl = null, coverUrl = null;
         if (data.owner_id) {
           const { data: profile } = await supabase.from('profiles')
@@ -29,6 +36,7 @@ export default function CreatorPage() {
           coverUrl = profile?.cover_url || null;
         }
         setCreator({ ...data, avatar_url: avatarUrl, cover_url: coverUrl });
+        setTiers(Array.isArray(data.tiers) ? data.tiers : []);
         setLoading(false);
       });
   }, [username]);
@@ -36,6 +44,8 @@ export default function CreatorPage() {
   if (!username) return <div className="p-8 text-red-400">无用户名</div>;
   if (loading) return <div className="p-8 text-white/50">加载中...</div>;
   if (!creator) return <div className="p-8 text-red-400">创作者不存在</div>;
+
+  const isOwner = user && profile && creator.owner_id === user.id;
 
   const mapped = {
     id: creator.id,
@@ -52,6 +62,11 @@ export default function CreatorPage() {
     postCount: creator.post_count,
     shortCount: creator.short_count,
     isSubscribed: false,
+    ownerId: creator.owner_id,
+  };
+
+  const subscribeHandler = (tier: Tier) => {
+    alert(`订阅 ${tier.name} - $${tier.price}/月\n（Stripe 支付待接入）`);
   };
 
   return (
@@ -62,6 +77,21 @@ export default function CreatorPage() {
       </div>
       <CreatorHero creator={mapped} />
       <CreatorTabs creator={mapped} />
+
+      {/* 订阅档位 */}
+      {tiers.length > 0 && (
+        <div className="px-4 py-6 border-t border-white/10">
+          <h2 className="text-lg font-bold mb-3">订阅档位</h2>
+          {isOwner && showTierEditor ? (
+            <TierEditor creatorId={creator.id} onSaved={() => { setShowTierEditor(false); }} />
+          ) : (
+            <>
+              {isOwner && <button onClick={() => setShowTierEditor(true)} className="mb-3 text-[#f472b6] text-sm font-bold">编辑档位</button>}
+              <TierDisplay tiers={tiers} onSubscribe={subscribeHandler} />
+            </>
+          )}
+        </div>
+      )}
     </>
   );
 }

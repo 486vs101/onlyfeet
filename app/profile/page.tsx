@@ -550,12 +550,6 @@ export default function ProfilePage() {
           <div className="rounded-full p-1 bg-black">
             {renderAvatar(112, profile.avatar_url, profile.avatar_color, profile.display_name)}
           </div>
-          {!profile.is_creator && (
-            <Link href="/become-creator" className="mt-5 flex items-center justify-center gap-2 py-3 rounded-xl bg-white/10 text-white text-sm font-medium hover:bg-white/15 transition">
-              <Sparkles className="w-4 h-4" />
-              开通创作者(解锁付费功能)
-            </Link>
-          )}
         </div>
 
         <div className="mt-3">
@@ -609,7 +603,7 @@ export default function ProfilePage() {
 
             const items = activeTab === 'works' ? myShorts : activeTab === 'posts' ? myPosts : bookmarkedItems;
             const isEmpty = items.length === 0;
-            const emptyMsg = {works: profile?.is_creator ? '还没有发布作品' : '成为创作者后可以发布作品', posts: '还没有发布帖子', likes: '还没有喜欢任何作品', bookmarks: '还没有收藏任何作品'}[activeTab];
+            const emptyMsg = {works: '还没有发布作品', posts: '还没有发布帖子', likes: '还没有喜欢任何作品', bookmarks: '还没有收藏任何作品'}[activeTab];
 
             if (isEmpty) return <p className="text-white/30 text-sm text-center py-12">{emptyMsg}</p>;
 
