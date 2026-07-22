@@ -36,6 +36,7 @@ export default function CreatePage() {
   const [bgmFile, setBgmFile] = useState<File | null>(null);
   const [bgmUrl, setBgmUrl] = useState<string>('');
   const [isLocked, setIsLocked] = useState(false);
+  const [minTierIndex, setMinTierIndex] = useState(0);
   const [ppvPrice, setPpvPrice] = useState(2);
   const [isPinned, setIsPinned] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -283,7 +284,7 @@ export default function CreatePage() {
           bgm_url: bgmFinalUrl || null,
           images: mediaType === 'gallery' ? galleryJson : null,
           slide_duration: mediaType === 'gallery' ? galleryItems[0]?.duration || 3 : null,
-          is_locked: willLock,
+          is_locked: willLock, min_tier_index: isCreator && isLocked ? Math.max(1, minTierIndex) : 0,
           ppv_price: willLock ? ppvPrice : 0,
           is_pinned: isPinned,
           pinned_at: isPinned ? new Date().toISOString() : null,
@@ -333,7 +334,7 @@ export default function CreatePage() {
           bgm_title: bgmTitle || null,
           bgm_artist: bgmArtist || null,
           bgm_url: bgmFinalUrl || null,
-          is_locked: willLock,
+          is_locked: willLock, min_tier_index: isCreator && isLocked ? Math.max(1, minTierIndex) : 0,
           ppv_price: willLock ? ppvPrice : 0,
           is_pinned: isPinned,
           pinned_at: isPinned ? new Date().toISOString() : null,
@@ -480,36 +481,6 @@ export default function CreatePage() {
           )}
           <input ref={bgmInput} type="file" accept="audio/*" onChange={(e) => handleBgm(e.target.files?.[0] || null)} className="hidden" />
         </div>
-
-        {/* 付费 */}
-        {isCreator && (
-          <div className="mt-4 p-4 rounded-xl bg-white/5 space-y-3">
-            <label className="flex items-center justify-between cursor-pointer">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-white/80">付费内容</span>
-              </div>
-              <button type="button" onClick={() => setIsLocked(!isLocked)} className={`relative w-11 h-6 rounded-full transition ${isLocked ? 'bg-[#f472b6]' : 'bg-white/20'}`}>
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${isLocked ? 'left-5' : 'left-0.5'}`} />
-              </button>
-            </label>
-            {isLocked && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-white/60">$</span>
-                <input type="number" min="0.99" max="99.99" step="0.01" value={ppvPrice} onChange={(e) => setPpvPrice(parseFloat(e.target.value))} className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
-                <span className="text-sm text-white/60">一次性解锁</span>
-              </div>
-            )}
-            <label className="flex items-center justify-between cursor-pointer pt-2 border-t border-white/5">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">📌</span>
-                <span className="text-sm font-medium text-white/80">置顶</span>
-              </div>
-              <button type="button" onClick={() => setIsPinned(!isPinned)} className={`relative w-11 h-6 rounded-full transition ${isPinned ? 'bg-[#f472b6]' : 'bg-white/20'}`}>
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${isPinned ? 'left-5' : 'left-0.5'}`} />
-              </button>
-            </label>
-          </div>
-        )}
 
         {error && <div className="mt-4 text-red-400 text-sm bg-red-400/10 rounded-lg p-3">{error}</div>}
 

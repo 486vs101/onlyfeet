@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { Sparkles, Plus, Edit3, X, Check, Camera, Image as ImageIcon, Heart, MessageCircle, Send } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
+import { TierEditor } from '@/components/creator/tier-editor';
 import { supabase } from '@/lib/supabase';
 import { CommentSection } from '@/components/shared/comment-section';
 
@@ -313,6 +314,8 @@ export default function ProfilePage() {
   const [myCreator, setMyCreator] = useState<any>(null);
   const [editing, setEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'works' | 'posts' | 'likes' | 'bookmarks'>('works');
+  const [paidEnabled, setPaidEnabled] = useState(false);
+  const [showTierEditor, setShowTierEditor] = useState(false);
   const [likedItems, setLikedItems] = useState<any[]>([]);
   const [likedPostItems, setLikedPostItems] = useState<any[]>([]);
   const [likeFilter, setLikeFilter] = useState<'works' | 'posts'>('works');
@@ -350,6 +353,7 @@ export default function ProfilePage() {
       .then(({ data }) => {
         if (!data) return;
         setMyCreator(data);
+        setPaidEnabled(data.paid_enabled || false);
         // 作品
         supabase.from('shorts').select('*').eq('creator_id', data.id)
           .order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
@@ -509,6 +513,14 @@ export default function ProfilePage() {
   const togglePostComments = (postId: string) => {
     if (!user) { window.location.href = '/login'; return; }
     setOpenPostComment(openPostComment === postId ? null : postId);
+
+  const togglePaid = async () => {
+    if (!myCreator) return;
+    const next = !paidEnabled;
+    setPaidEnabled(next);
+    await supabase.from("creators").update({ paid_enabled: next }).eq("id", myCreator.id);
+    if (next) setShowTierEditor(true);
+  };
   };
 
   const renderAvatar = (size: number, url?: string | null, color?: string, name?: string) => {
@@ -556,6 +568,7 @@ export default function ProfilePage() {
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-bold">{profile.display_name}</h2>
             <span className="text-[#f472b6] text-sm">✓</span>
+            <div className="flex items-center gap-1.5 ml-2"><span className="text-xs text-white/40">付费</span><button onClick={() => togglePaid()} className={`relative w-9 h-5 rounded-full transition ${paidEnabled ? "bg-[#f472b6]" : "bg-white/20"}`}><span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition ${paidEnabled ? "left-4" : "left-0.5"}`} /></button></div>
           </div>
           <p className="text-white/50 mt-0.5">@{profile.username}</p>
         </div>
@@ -690,6 +703,17 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* 付费档位编辑弹窗 */}
+      {showTierEditor && myCreator && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={() => setShowTierEditor(false)}>
+          <div className="min-h-screen flex items-start justify-center px-4 py-8">
+            <div className="bg-zinc-900 rounded-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4"><h3 className="text-xl font-bold">编辑订阅档位</h3><button onClick={() => setShowTierEditor(false)} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center"><X className="w-4 h-4" /></button></div>
+              <TierEditor creatorId={myCreator.id} onSaved={() => setShowTierEditor(false)} />
+            </div>
+          </div>
+        </div>
+      )}
       {/* 编辑资料弹窗 */}
       {editing && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={() => setEditing(false)}>
