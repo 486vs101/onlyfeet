@@ -5,9 +5,9 @@ import { Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 type Creator = {
-  id: string; username: string; display_name: string;
-  avatar_color: string; verified: boolean; subscription_price: number;
-  subscriber_count: number;
+  id: string; username: string; display_name: string; owner_id?: string;
+  avatar_color: string; avatar_url?: string | null;
+  verified: boolean; subscription_price: number; subscriber_count: number;
 };
 
 export function RightPanel() {
@@ -17,7 +17,16 @@ export function RightPanel() {
 
   useEffect(() => {
     supabase.from('creators').select('*').order('subscriber_count', { ascending: false }).limit(4)
-      .then(({ data }) => { if (data) setCreators(data); });
+      .then(async ({ data }) => {
+        if (!data) return;
+        const oids = data.map(c => c.owner_id).filter(Boolean);
+        const pMap: Record<string, any> = {};
+        if (oids.length > 0) {
+          const { data: p } = await supabase.from('profiles').select('id,avatar_url').in('id', oids);
+          (p || []).forEach(x => { pMap[x.id] = x; });
+        }
+        setCreators(data.map(c => ({ ...c, avatar_url: pMap[c.owner_id]?.avatar_url || null })));
+      });
 
     // Aggregate hashtags from shorts AND posts
     Promise.all([
@@ -57,7 +66,10 @@ export function RightPanel() {
         <h3 className="text-xl font-bold px-4 pt-3 pb-2">推荐创作者</h3>
         {creators.map((c) => (
           <a key={c.id} href={`/creator/${c.username}`} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors cursor-pointer">
-            <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-sm" style={{ background: c.avatar_color }}>{c.display_name[0]}</div>
+            <div className="w-10 h-10 rounded-full shrink-0 overflow-hidden bg-zinc-800 flex items-center justify-center">
+              {c.avatar_url ? <img src={c.avatar_url} className="w-full h-full object-cover" alt="" /> :
+               <span className="text-white font-bold text-sm">{c.display_name[0]}</span>}
+            </div>
             <div className="flex-1 min-w-0">
               <p className="text-[15px] font-bold truncate flex items-center gap-1">{c.display_name}{c.verified && <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#f472b6] text-[10px] font-bold text-white">✓</span>}</p>
               <p className="text-[13px] text-white/50 truncate">@{c.username}</p>
