@@ -25,7 +25,23 @@ export default function ExplorePage() {
   useEffect(() => {
     supabase.from('creators').select('*')
       .order('subscriber_count', { ascending: false })
-      .then(({ data }) => { if (data) setCreators(data); setLoading(false); });
+      .then(async ({ data }) => {
+        if (!data) { setLoading(false); return; }
+        // 联查 profiles 拿真实头像/封面
+        const ownerIds = data.map(c => c.owner_id).filter(Boolean);
+        let profiles: Record<string, any> = {};
+        if (ownerIds.length > 0) {
+          const { data: p } = await supabase.from('profiles').select('id, avatar_url, cover_url').in('id', ownerIds);
+          (p || []).forEach(x => { profiles[x.id] = x; });
+        }
+        const enriched = data.map(c => ({
+          ...c,
+          avatar_url: profiles[c.owner_id]?.avatar_url || null,
+          cover_url: profiles[c.owner_id]?.cover_url || null,
+        }));
+        setCreators(enriched);
+        setLoading(false);
+      });
   }, []);
 
   const matched = query.trim()
@@ -58,8 +74,9 @@ export default function ExplorePage() {
             <Link key={c.id} href={`/creator/${c.username}`}
               className="x-card overflow-hidden group hover:bg-white/[0.02] transition-colors">
               <div className="h-20 relative bg-black">
-                <div className="absolute -bottom-5 left-3 w-12 h-12 rounded-full border-2 border-black flex items-center justify-center text-white font-bold text-base bg-zinc-800">
-                  {c.display_name[0]}
+                {c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full bg-black" />}
+                <div className="absolute -bottom-5 left-3 w-12 h-12 rounded-full border-2 border-black flex items-center justify-center text-white font-bold text-base bg-zinc-800 overflow-hidden">
+                  {c.avatar_url ? <img src={c.avatar_url} className="w-full h-full object-cover" alt="" /> : c.display_name[0]}
                 </div>
               </div>
               <div className="pt-7 pb-3 px-3">

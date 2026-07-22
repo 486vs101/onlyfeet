@@ -14,14 +14,22 @@ export default function SubscriptionsPage() {
   useEffect(() => {
     if (!user) { setSubs([]); setLoading(false); return; }
     supabase.from('subscriptions').select('*, creator:creators!subscriptions_creator_id_fkey(*)').eq('user_id', user.id).eq('active', true)
-      .then(({ data, error }) => {
+      .then(async ({ data, error }) => {
+        let raw: any[] = [];
         if (data && data.length > 0) {
-          setSubs(data);
+          raw = data;
         } else {
-          // Fallback: show top creators as recommendation
-          supabase.from('creators').select('*').order('subscriber_count', { ascending: false }).limit(3)
-            .then(({ data: c }) => { setSubs((c || []).map(x => ({ creator: x }))); });
+          const { data: c } = await supabase.from('creators').select('*').order('subscriber_count', { ascending: false }).limit(3);
+          raw = (c || []).map(x => ({ creator: x }));
         }
+        // 联查 profiles 拿真实头像
+        const ownerIds = raw.map(s => s.creator?.owner_id).filter(Boolean);
+        if (ownerIds.length > 0) {
+          const { data: p } = await supabase.from('profiles').select('id, avatar_url, cover_url').in('id', ownerIds);
+          const map: Record<string, any> = {}; (p || []).forEach(x => { map[x.id] = x; });
+          raw.forEach(s => { if (s.creator?.owner_id) { s.creator.avatar_url = map[s.creator.owner_id]?.avatar_url || null; s.creator.cover_url = map[s.creator.owner_id]?.cover_url || null; } });
+        }
+        setSubs(raw);
         setLoading(false);
       });
   }, [user]);
