@@ -22,6 +22,7 @@ export default function SettingsPage() {
   const [pwSuccess, setPwSuccess] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [blockedList, setBlockedList] = useState<string[]>([]);
+  const [blockedNames, setBlockedNames] = useState<Record<string, string>>({});
   const [showBlocked, setShowBlocked] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -36,6 +37,15 @@ export default function SettingsPage() {
         if (typeof prefs.darkMode === 'boolean') setDarkMode(prefs.darkMode);
         if (typeof prefs.notifications === 'boolean') setNotifications(prefs.notifications);
         if (prefs.blocked) setBlockedList(prefs.blocked);
+        // Fetch blocked user names
+        if (prefs.blocked && prefs.blocked.length > 0) {
+          supabase.from('profiles').select('id,display_name').in('id', prefs.blocked)
+            .then(({ data: p }) => {
+              const map: Record<string, string> = {};
+              (p || []).forEach(x => { map[x.id] = x.display_name; });
+              setBlockedNames(map);
+            });
+        }
       });
   }, [user, profile]);
 
@@ -120,18 +130,6 @@ export default function SettingsPage() {
             <button onClick={handleChangePassword} className="px-4 py-1.5 rounded-lg bg-[#f472b6] text-white text-xs font-bold">确认修改</button>
           </div>
         )}
-
-        <div onClick={toggleLang} className="flex items-center justify-between py-3 px-2 -mx-2 rounded-lg cursor-pointer hover:bg-white/[0.02]">
-          <div className="flex items-center gap-3"><Globe className="w-5 h-5 text-white/60" /><span className="text-[15px]">语言</span></div>
-          <div className="flex items-center gap-2"><span className="text-[13px] text-white/40">{lang === 'zh' ? '中文' : 'English'}</span><ChevronRight className="w-4 h-4 text-white/30" /></div>
-        </div>
-
-        <div onClick={toggleDark} className="flex items-center justify-between py-3 px-2 -mx-2 rounded-lg cursor-pointer hover:bg-white/[0.02]">
-          <div className="flex items-center gap-3"><Moon className="w-5 h-5 text-white/60" /><span className="text-[15px]">深色模式</span></div>
-          <button className={`relative w-11 h-6 rounded-full transition ${darkMode ? 'bg-[#f472b6]' : 'bg-white/20'}`}>
-            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${darkMode ? 'left-5' : 'left-0.5'}`} />
-          </button>
-        </div>
       </div>
 
       {/* Notifications */}
@@ -156,7 +154,7 @@ export default function SettingsPage() {
           <div className="ml-10 mt-2 space-y-2">
             {blockedList.length === 0 ? <p className="text-white/30 text-sm">没有拉黑任何人</p> :
              blockedList.map((uid, i) => (
-               <div key={i} className="flex items-center justify-between py-1"><span className="text-white/60 text-sm">{uid.slice(0,8)}...</span><button onClick={() => unblock(uid)} className="text-red-400 text-xs">移除</button></div>
+               <div key={i} className="flex items-center justify-between py-1"><span className="text-white/60 text-sm">{blockedNames[uid] || uid.slice(0,8)+'...'}</span><button onClick={() => unblock(uid)} className="text-red-400 text-xs">移除</button></div>
              ))}
           </div>
         )}
