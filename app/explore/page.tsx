@@ -11,6 +11,8 @@ type Creator = {
   display_name: string;
   avatar_color: string;
   cover_color: string;
+  avatar_url?: string | null;
+  cover_url?: string | null;
   bio: string;
   subscription_price: number;
   verified: boolean;
