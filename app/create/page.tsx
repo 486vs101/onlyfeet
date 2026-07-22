@@ -43,6 +43,7 @@ export default function CreatePage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
   const [myCreator, setMyCreator] = useState<any>(null);
+  const [creatorTiers, setCreatorTiers] = useState<any[]>([]);
 
   const videoInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
@@ -56,7 +57,7 @@ export default function CreatePage() {
   useEffect(() => {
     if (user && profile) {
       supabase.from('creators').select('*').eq('owner_id', user.id).maybeSingle()
-        .then(({ data }) => setMyCreator(data));
+        .then(({ data }) => { setMyCreator(data); if (data?.tiers) setCreatorTiers(data.tiers); });
     }
   }, [user, profile]);
 
@@ -481,6 +482,30 @@ export default function CreatePage() {
           )}
           <input ref={bgmInput} type="file" accept="audio/*" onChange={(e) => handleBgm(e.target.files?.[0] || null)} className="hidden" />
         </div>
+
+        {/* 内容可见档位 */}
+        {creatorTiers.length > 0 && (
+          <div className="mt-4 p-4 rounded-xl bg-white/5">
+            <label className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-white/80">内容可见档位</span>
+            </label>
+            <select value={minTierIndex} onChange={e => { const v = parseInt(e.target.value); setMinTierIndex(v); setIsLocked(v > 0); }} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white">
+              <option value={0}>🔓 公开（所有人可见）</option>
+              {creatorTiers.filter((t:any) => t.price > 0).map((t:any, i:number) => (
+                <option key={i+1} value={i+1}>{t.badge || ''} {t.name}（${t.price}/月及以上可见）</option>
+              ))}
+            </select>
+            <label className="flex items-center justify-between cursor-pointer mt-3 pt-3 border-t border-white/5">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">📌</span>
+                <span className="text-sm font-medium text-white/80">置顶</span>
+              </div>
+              <button type="button" onClick={() => setIsPinned(!isPinned)} className={`relative w-11 h-6 rounded-full transition ${isPinned ? 'bg-[#f472b6]' : 'bg-white/20'}`}>
+                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${isPinned ? 'left-5' : 'left-0.5'}`} />
+              </button>
+            </label>
+          </div>
+        )}
 
         {error && <div className="mt-4 text-red-400 text-sm bg-red-400/10 rounded-lg p-3">{error}</div>}
 
