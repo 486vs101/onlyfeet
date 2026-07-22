@@ -17,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="flex justify-end">
             <LeftSidebar />
           </div>
-          <main className="flex-1 max-w-[600px] border-x border-white/10 min-h-screen pb-14 lg:pb-0">
+          <main className="flex-1 max-w-[990px] border-x border-white/10 min-h-screen pb-14 lg:pb-0">
             {children}
           </main>
           <div className="flex justify-start">
