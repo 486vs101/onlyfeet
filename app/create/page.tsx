@@ -484,7 +484,7 @@ export default function CreatePage() {
         </div>
 
         {/* 内容可见档位 */}
-        {creatorTiers.length > 0 && (
+        {myCreator?.paid_enabled && creatorTiers.length > 0 && (
           <div className="mt-4 p-4 rounded-xl bg-white/5">
             <label className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-white/80">内容可见档位</span>
