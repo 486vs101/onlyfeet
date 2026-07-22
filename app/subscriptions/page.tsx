@@ -48,7 +48,7 @@ export default function SubscriptionsPage() {
               <Link key={c.username} href={`/creator/${c.username}`} className="flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
                 <div className="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-xl shrink-0 bg-black">
                   {c.avatar_url ? <img src={c.avatar_url} className="w-full h-full object-cover" alt="" /> :
-                    <span style={{ background: c.avatar_color, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{c.display_name[0]}</span>}
+                    <span className="w-full h-full flex items-center justify-center bg-zinc-800">{c.display_name[0]}</span>}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1"><p className="font-bold text-[15px]">{c.display_name}</p>{c.verified && <span className="text-[#f472b6] text-sm">✓</span>}</div>

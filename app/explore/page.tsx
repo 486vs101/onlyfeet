@@ -57,8 +57,8 @@ export default function ExplorePage() {
           {matched.map(c => (
             <Link key={c.id} href={`/creator/${c.username}`}
               className="x-card overflow-hidden group hover:bg-white/[0.02] transition-colors">
-              <div className="h-20 relative" style={{ background: c.cover_color }}>
-                <div className="absolute -bottom-5 left-3 w-12 h-12 rounded-full border-2 border-black flex items-center justify-center text-white font-bold text-base" style={{ background: c.avatar_color }}>
+              <div className="h-20 relative bg-black">
+                <div className="absolute -bottom-5 left-3 w-12 h-12 rounded-full border-2 border-black flex items-center justify-center text-white font-bold text-base bg-zinc-800">
                   {c.display_name[0]}
                 </div>
               </div>

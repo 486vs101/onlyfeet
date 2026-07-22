@@ -116,7 +116,7 @@ export default function MessagesPage() {
                 <button key={c.id} onClick={() => openConvo(c.id)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] text-left">
                   <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-lg shrink-0 bg-black">
                     {c.avatar_url ? <img src={c.avatar_url} className="w-full h-full object-cover" alt="" /> :
-                      <span style={{ background: c.avatar_color, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{c.display[0]}</span>}
+                      <span className="w-full h-full flex items-center justify-center bg-zinc-800">{c.display[0]}</span>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between"><p className="font-bold text-[15px] truncate">{c.display}</p><span className="text-xs text-white/40">{c.time}</span></div>
