@@ -51,12 +51,21 @@ export default function MessagesPage() {
               setLoading(false);
             });
         } else {
-          // Fallback: show creators as potential contacts
-          supabase.from('creators').select('username, display_name, avatar_color').limit(5)
-            .then(({ data: c }) => {
+          // Fallback: show creators with real avatars
+          supabase.from('creators').select('username, display_name, avatar_color, owner_id').limit(5)
+            .then(async ({ data: c }) => {
+              if (!c || c.length === 0) { setLoading(false); return; }
+              const ownerIds = c.map(x => x.owner_id).filter(Boolean);
+              const pMap: Record<string, any> = {};
+              if (ownerIds.length > 0) {
+                const { data: p } = await supabase.from('profiles').select('id, avatar_url').in('id', ownerIds);
+                (p || []).forEach(x => { pMap[x.id] = x; });
+              }
               setConvos((c || []).map((cr: any) => ({
                 id: cr.username, username: cr.username, display: cr.display_name,
-                avatar_color: cr.avatar_color, last_message: '点击开始聊天', time: '', unread: false,
+                avatar_color: cr.avatar_color,
+                avatar_url: pMap[cr.owner_id]?.avatar_url || null,
+                last_message: '点击开始聊天', time: '', unread: false,
               })));
               setLoading(false);
             });
