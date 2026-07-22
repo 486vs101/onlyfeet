@@ -514,6 +514,9 @@ export default function ProfilePage() {
     if (!user) { window.location.href = '/login'; return; }
     setOpenPostComment(openPostComment === postId ? null : postId);
 
+  };
+
+
   const togglePaid = async () => {
     if (!myCreator) return;
     const next = !paidEnabled;
@@ -521,8 +524,6 @@ export default function ProfilePage() {
     await supabase.from("creators").update({ paid_enabled: next }).eq("id", myCreator.id);
     if (next) setShowTierEditor(true);
   };
-  };
-
   const renderAvatar = (size: number, url?: string | null, color?: string, name?: string) => {
     const s = { width: size, height: size };
     if (url) return <img src={url} style={s} className="rounded-full object-cover" alt="" />;
