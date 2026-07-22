@@ -121,7 +121,7 @@ export default function MessagesPage() {
             <input placeholder="搜索私信" className="w-full bg-white/[0.06] border border-white/[0.08] rounded-full h-11 pl-12 pr-5 text-[15px] text-white placeholder:text-white/25 outline-none focus:bg-black focus:border-[#1d9bf0]" />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
           {loading ? <p className="p-8 text-white/30 text-center text-[15px]">加载中...</p> :
            convos.length === 0 ? <div className="p-8 text-center"><p className="text-white/30 text-[15px] mb-1">欢迎来到私信</p><p className="text-white/20 text-[13px]">从发现页找到创作者，开始聊天</p></div> :
            convos.map(c => (
@@ -163,7 +163,7 @@ export default function MessagesPage() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 no-scrollbar">
               {messages.length === 0 && (
                 <div className="text-center py-20"><p className="text-white/25 text-[15px]">发送一条消息开始对话</p></div>
               )}
