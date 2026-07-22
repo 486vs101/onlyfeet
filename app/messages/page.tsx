@@ -35,7 +35,7 @@ export default function MessagesPage() {
                 (p || []).forEach(x => { pMap[x.id] = x; });
               }
               setConvos(c.map(cr => ({
-                otherId: cr.username, display: cr.display_name,
+                otherId: cr.owner_id || cr.username, display: cr.display_name,
                 avatar_url: pMap[cr.owner_id]?.avatar_url || null,
                 lastMsg: '点击开始聊天', time: '', unread: 0
               })));
