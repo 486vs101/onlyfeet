@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 
 import { useState, useEffect } from 'react';
 import { Creator } from '@/lib/types';
@@ -64,8 +65,11 @@ export function CreatorHero({ creator }: Props) {
               <span><b className="text-white">{creator.postCount + creator.shortCount}</b> 作品</span>
             </div>
           </div>
-          <div className="shrink-0 ml-4">
+          <div className="shrink-0 ml-4 flex flex-col gap-2 items-center">
             <SubscribeButton creator={creator} />
+            <Link href={`/messages`} className="px-5 py-2 rounded-full font-bold text-sm border border-white/20 text-white hover:bg-white/10 transition">
+              私信
+            </Link>
           </div>
         </div>
       </div>
