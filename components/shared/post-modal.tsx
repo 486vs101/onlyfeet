@@ -33,7 +33,7 @@ export function PostModal({ post, creator, subscribed, isLiked, onToggleLike, on
             <div className="text-center p-8">
               <Lock className="w-12 h-12 mx-auto mb-3 text-[#f472b6]" />
               <p className="text-white font-bold text-lg mb-1">
-                {post.isPPV ? `Unlock for $${post.ppvPrice}` : '订阅后查看'}
+                {post.isPPV ? `Unlock for $${post.ppvPrice}` : '关注后查看'}
               </p>
               <p className="text-white/60 text-sm">
                 Subscribe @{creator.username} for ${creator.subscriptionPrice}/mo

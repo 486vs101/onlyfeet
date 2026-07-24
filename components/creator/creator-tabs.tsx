@@ -77,7 +77,7 @@ export function CreatorTabs({ creator }: Props) {
       {tab === 'about' && (
         <div className="p-4 text-[15px] text-white/50 space-y-3">
           <p>{creator.bio}</p>
-          <p>{creator.subscriberCount.toLocaleString()} 个订阅</p>
+          <p>{creator.subscriberCount.toLocaleString()} 个关注</p>
           <p>${creator.subscriptionPrice}/month</p>
         </div>
       )}

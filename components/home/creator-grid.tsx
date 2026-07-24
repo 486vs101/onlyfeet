@@ -77,7 +77,7 @@ export function CreatorGrid() {
                     {c.verified && <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#f472b6] text-[10px] font-bold text-white">✓</span>}
                   </p>
                   <p className="text-[13px] text-[hsl(var(--fg-secondary))] truncate">@{c.username}</p>
-                  <p className="text-[13px] text-[hsl(var(--fg-muted))] mt-1">{(c.subscriber_count/1000).toFixed(1)}K 个订阅</p>
+                  <p className="text-[13px] text-[hsl(var(--fg-muted))] mt-1">{(c.subscriber_count/1000).toFixed(1)}K 个关注</p>
                   <div className="mt-2">
                     <span className="inline-block px-3 py-1 rounded-full bg-[hsl(var(--bg-secondary))] text-[13px] text-[hsl(var(--fg-secondary))]">
                       ${c.subscription_price}<span className="text-[hsl(var(--fg-muted))]">/mo</span>

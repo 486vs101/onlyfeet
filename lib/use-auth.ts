@@ -54,16 +54,19 @@ export function useAuth() {
   };
 
   const signUp = async (email: string, password: string, username: string, displayName: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { username, display_name: displayName }
-      }
+    // 通过自有 API 注册，Admin 创建用户跳过邮件验证
+    const res = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, username, displayName: displayName || username }),
     });
+    const result = await res.json();
+    if (!res.ok) return { error: { message: result.error || '注册失败' } };
+    // 注册成功后自动登录
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error };
-    if (data.user) await fetchProfile(data.user.id);
-    return { data, error: null };
+    await fetchProfile(result.userId);
+    return { data: { user: { id: result.userId } }, error: null };
   };
 
   const signIn = async (email: string, password: string) => {

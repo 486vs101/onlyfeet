@@ -36,14 +36,12 @@ export default function CreatePage() {
   const [bgmFile, setBgmFile] = useState<File | null>(null);
   const [bgmUrl, setBgmUrl] = useState<string>('');
   const [isLocked, setIsLocked] = useState(false);
-  const [minTierIndex, setMinTierIndex] = useState(0);
   const [ppvPrice, setPpvPrice] = useState(2);
   const [isPinned, setIsPinned] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
   const [myCreator, setMyCreator] = useState<any>(null);
-  const [creatorTiers, setCreatorTiers] = useState<any[]>([]);
 
   const videoInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
@@ -57,7 +55,7 @@ export default function CreatePage() {
   useEffect(() => {
     if (user && profile) {
       supabase.from('creators').select('*').eq('owner_id', user.id).maybeSingle()
-        .then(({ data }) => { setMyCreator(data); if (data?.tiers) setCreatorTiers(data.tiers); });
+        .then(({ data }) => setMyCreator(data));
     }
   }, [user, profile]);
 
@@ -229,7 +227,6 @@ export default function CreatePage() {
           avatar_color: profile?.avatar_color || '#f472b6',
           cover_color: '#831843',
           bio: profile?.bio || '',
-          subscription_price: 0,
           verified: false,
           subscriber_count: 0,
           post_count: 0,
@@ -285,7 +282,7 @@ export default function CreatePage() {
           bgm_url: bgmFinalUrl || null,
           images: mediaType === 'gallery' ? galleryJson : null,
           slide_duration: mediaType === 'gallery' ? galleryItems[0]?.duration || 3 : null,
-          is_locked: willLock, min_tier_index: isCreator && isLocked ? Math.max(1, minTierIndex) : 0,
+          is_locked: willLock, is_locked: willLock,
           ppv_price: willLock ? ppvPrice : 0,
           is_pinned: isPinned,
           pinned_at: isPinned ? new Date().toISOString() : null,
@@ -335,7 +332,7 @@ export default function CreatePage() {
           bgm_title: bgmTitle || null,
           bgm_artist: bgmArtist || null,
           bgm_url: bgmFinalUrl || null,
-          is_locked: willLock, min_tier_index: isCreator && isLocked ? Math.max(1, minTierIndex) : 0,
+          is_locked: willLock, is_locked: willLock,
           ppv_price: willLock ? ppvPrice : 0,
           is_pinned: isPinned,
           pinned_at: isPinned ? new Date().toISOString() : null,
@@ -377,7 +374,7 @@ export default function CreatePage() {
           <button onClick={() => setPublishType('post')} className={`p-4 rounded-xl border transition ${publishType === 'post' ? 'border-[#f472b6] bg-[#f472b6]/10 text-white' : 'border-white/10 text-white/60 hover:bg-white/5'}`}>
             <FileText className="w-6 h-6 mx-auto mb-1" />
             <p className="text-sm font-bold">帖子 / 动态</p>
-            <p className="text-[10px] text-white/40">订阅者可见</p>
+            <p className="text-[10px] text-white/40">关注者可见</p>
           </button>
         </div>
 
@@ -483,29 +480,6 @@ export default function CreatePage() {
           <input ref={bgmInput} type="file" accept="audio/*" onChange={(e) => handleBgm(e.target.files?.[0] || null)} className="hidden" />
         </div>
 
-        {/* 内容可见档位 */}
-        {myCreator?.paid_enabled && creatorTiers.length > 0 && (
-          <div className="mt-4 p-4 rounded-xl bg-white/5">
-            <label className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-white/80">内容可见档位</span>
-            </label>
-            <select value={minTierIndex} onChange={e => { const v = parseInt(e.target.value); setMinTierIndex(v); setIsLocked(v > 0); }} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white">
-              <option value={0}>🔓 公开（所有人可见）</option>
-              {creatorTiers.filter((t:any) => t.price > 0).map((t:any, i:number) => (
-                <option key={i+1} value={i+1}>{t.badge || ''} {t.name}（${t.price}/月及以上可见）</option>
-              ))}
-            </select>
-            <label className="flex items-center justify-between cursor-pointer mt-3 pt-3 border-t border-white/5">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">📌</span>
-                <span className="text-sm font-medium text-white/80">置顶</span>
-              </div>
-              <button type="button" onClick={() => setIsPinned(!isPinned)} className={`relative w-11 h-6 rounded-full transition ${isPinned ? 'bg-[#f472b6]' : 'bg-white/20'}`}>
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${isPinned ? 'left-5' : 'left-0.5'}`} />
-              </button>
-            </label>
-          </div>
-        )}
 
         {error && <div className="mt-4 text-red-400 text-sm bg-red-400/10 rounded-lg p-3">{error}</div>}
 

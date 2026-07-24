@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
 import { Check, Crown } from 'lucide-react';
 
 type Tier = { name: string; price: number; badge: string; perks: string[] };
 
-export function TierDisplay({ tiers, onSubscribe }: { tiers: Tier[]; onSubscribe?: (tier: Tier) => void }) {
+export function TierDisplay({ tiers, creatorId, creatorUsername, userId }: {
+  tiers: Tier[]; creatorId?: string; creatorUsername?: string; userId?: string;
+}) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       {tiers.map((t, i) => (
@@ -29,9 +30,9 @@ export function TierDisplay({ tiers, onSubscribe }: { tiers: Tier[]; onSubscribe
               </li>
             ))}
           </ul>
-          <button onClick={() => onSubscribe?.(t)} disabled={t.price === 0}
+          <button disabled={t.price === 0}
             className={`w-full py-2 rounded-xl text-sm font-bold transition ${t.price === 0 ? 'bg-white/5 text-white/40 cursor-default' : 'bg-gradient-to-r from-[#f472b6] to-[#db2777] text-white hover:opacity-90'}`}>
-            {t.price === 0 ? '当前档位' : '订阅'}
+            {t.price === 0 ? '关注' : '关注'}
           </button>
         </div>
       ))}

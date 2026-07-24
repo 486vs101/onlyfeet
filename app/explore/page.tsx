@@ -14,7 +14,6 @@ type Creator = {
   avatar_url?: string | null;
   cover_url?: string | null;
   bio: string;
-  subscription_price: number;
   verified: boolean;
   subscriber_count: number;
 };
@@ -89,8 +88,7 @@ export default function ExplorePage() {
                 <p className="text-[13px] text-white/50 truncate">@{c.username}</p>
                 <p className="text-[13px] text-white/60 mt-1 line-clamp-2 h-9">{c.bio}</p>
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-                  <span className="text-[12px] text-white/50">{(c.subscriber_count / 1000).toFixed(1)}K 订阅</span>
-                  <span className="text-[12px] font-bold text-[#f472b6]">${c.subscription_price}/月</span>
+                  <span className="text-[12px] text-white/50">{(c.subscriber_count / 1000).toFixed(1)}K 关注</span>
                 </div>
               </div>
             </Link>

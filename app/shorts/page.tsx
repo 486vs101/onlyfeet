@@ -362,7 +362,7 @@ export default function ShortsPage() {
             <div className="flex items-center gap-1"><span className="text-white font-bold text-sm truncate">{current.creator?.display_name}</span>{current.creator?.verified && <span className="text-[#f472b6] text-xs flex-shrink-0">✓</span>}</div>
             <span className="text-white/60 text-xs">@{current.creator?.username}</span>
           </div>
-          <button onClick={e => { e.preventDefault(); if (!user) { window.location.href = '/login'; return; } }} className="ml-auto px-4 py-1 rounded-full bg-[#f472b6] text-white text-xs font-bold flex-shrink-0">订阅</button>
+          <button onClick={e => { e.preventDefault(); if (!user) { window.location.href = '/login'; return; } }} className="ml-auto px-4 py-1 rounded-full bg-[#f472b6] text-white text-xs font-bold flex-shrink-0">关注</button>
         </Link>
         <p className="text-white text-sm mb-1 line-clamp-2">{current.caption}</p>
         {current.hashtags?.length > 0 && <p className="text-[#f472b6] text-xs mb-1">{current.hashtags.map(h => `#${h}`).join(' ')}</p>}

@@ -6,7 +6,7 @@ import { MobileNav } from '@/components/layout/mobile-nav';
 
 export const metadata: Metadata = {
   title: 'onlyfeet',
-  description: '订阅你喜欢的脚部内容创作者',
+  description: '关注你喜欢的脚部内容创作者',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

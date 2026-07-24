@@ -10,7 +10,7 @@ const navItems = [
   { href: '/explore',       icon: Search,   label: '发现' },
   { href: '/notifications', icon: Bell,     label: '通知' },
   { href: '/messages',      icon: Mail,     label: '消息' },
-  { href: '/subscriptions', icon: Star,     label: '订阅' },
+  { href: '/subscriptions', icon: Star,     label: '关注' },
   { href: '/profile',       icon: User,     label: '我的' },
 ];
 

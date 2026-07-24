@@ -7,17 +7,13 @@ import { ArrowLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { CreatorHero } from '@/components/creator/creator-hero';
 import { CreatorTabs } from '@/components/creator/creator-tabs';
-import { TierDisplay } from '@/components/creator/tier-display';
 import { useAuth } from '@/lib/use-auth';
-
-type Tier = { name: string; price: number; badge: string; perks: string[] };
 
 export default function CreatorPage() {
   const params = useParams();
   const username = params?.username as string;
   const { user, profile } = useAuth();
   const [creator, setCreator] = useState<any>(null);
-  const [tiers, setTiers] = useState<Tier[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,7 +28,6 @@ export default function CreatorPage() {
           coverUrl = p?.cover_url || null;
         }
         setCreator({ ...data, avatar_url: avatarUrl, cover_url: coverUrl });
-        setTiers(Array.isArray(data.tiers) ? data.tiers : []);
         setLoading(false);
       });
   }, [username]);
@@ -45,7 +40,6 @@ export default function CreatorPage() {
     id: creator.id, username: creator.username, displayName: creator.display_name,
     avatarColor: creator.avatar_color, avatarUrl: creator.avatar_url || null,
     coverColor: creator.cover_color, coverUrl: creator.cover_url || null,
-    bio: creator.bio, subscriptionPrice: creator.subscription_price,
     verified: creator.verified, subscriberCount: creator.subscriber_count,
     postCount: creator.post_count, shortCount: creator.short_count,
     isSubscribed: false, ownerId: creator.owner_id,
@@ -59,12 +53,6 @@ export default function CreatorPage() {
       </div>
       <CreatorHero creator={mapped} />
       <CreatorTabs creator={mapped} />
-      {creator.paid_enabled && tiers.length > 0 && (
-        <div className="px-4 py-6 border-t border-white/10">
-          <h2 className="text-lg font-bold mb-3">订阅档位</h2>
-          <TierDisplay tiers={tiers} onSubscribe={(t) => alert(`订阅 ${t.name} - $${t.price}/月`)} />
-        </div>
-      )}
     </>
   );
 }

@@ -279,7 +279,7 @@ export default function PostDetailPage() {
               <span className="text-white/60 text-xs">@{creator.username}</span>
             </div>
             <button className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#f472b6] to-[#db2777] text-white text-sm font-bold flex-shrink-0">
-              订阅
+              关注
             </button>
         </Link>
       )}

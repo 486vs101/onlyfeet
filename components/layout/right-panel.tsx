@@ -74,7 +74,7 @@ export function RightPanel() {
               <p className="text-[15px] font-bold truncate flex items-center gap-1">{c.display_name}{c.verified && <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#f472b6] text-[10px] font-bold text-white">✓</span>}</p>
               <p className="text-[13px] text-white/50 truncate">@{c.username}</p>
             </div>
-            <button className="text-[13px] font-bold px-4 py-1.5 rounded-full bg-white text-black hover:bg-white/90 transition-colors">${c.subscription_price}</button>
+            <span className="text-[13px] text-white/50">{(c.subscriber_count/1000).toFixed(1)}K 粉丝</span>
           </a>
         ))}
         <a href="/explore" className="block px-4 py-3 text-[15px] text-[#f472b6] hover:bg-white/[0.03] transition-colors">查看更多</a>

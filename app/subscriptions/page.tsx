@@ -13,21 +13,22 @@ export default function SubscriptionsPage() {
 
   useEffect(() => {
     if (!user) { setSubs([]); setLoading(false); return; }
-    supabase.from('subscriptions').select('*, creator:creators!subscriptions_creator_id_fkey(*)').eq('user_id', user.id).eq('active', true)
-      .then(async ({ data, error }) => {
+    supabase.from('follows').select('following_id').eq('follower_id', user.id)
+      .then(async ({ data }) => {
         let raw: any[] = [];
         if (data && data.length > 0) {
-          raw = data;
+          const ids = data.map(f => f.following_id);
+          const { data: creators } = await supabase.from('creators').select('*').in('id', ids);
+          raw = (creators || []).map(c => ({ creator: c }));
         } else {
           const { data: c } = await supabase.from('creators').select('*').order('subscriber_count', { ascending: false }).limit(3);
           raw = (c || []).map(x => ({ creator: x }));
         }
-        // 联查 profiles 拿真实头像
         const ownerIds = raw.map(s => s.creator?.owner_id).filter(Boolean);
         if (ownerIds.length > 0) {
-          const { data: p } = await supabase.from('profiles').select('id, avatar_url, cover_url').in('id', ownerIds);
+          const { data: p } = await supabase.from('profiles').select('id, avatar_url').in('id', ownerIds);
           const map: Record<string, any> = {}; (p || []).forEach(x => { map[x.id] = x; });
-          raw.forEach(s => { if (s.creator?.owner_id) { s.creator.avatar_url = map[s.creator.owner_id]?.avatar_url || null; s.creator.cover_url = map[s.creator.owner_id]?.cover_url || null; } });
+          raw.forEach(s => { if (s.creator?.owner_id) { s.creator.avatar_url = map[s.creator.owner_id]?.avatar_url || null; } });
         }
         setSubs(raw);
         setLoading(false);
@@ -37,14 +38,14 @@ export default function SubscriptionsPage() {
   return (
     <div>
       <div className="sticky top-0 z-30 top-sticky border-b border-white/10 px-4 py-3">
-        <h1 className="text-xl font-bold">我的订阅</h1>
+        <h1 className="text-xl font-bold">我的关注</h1>
       </div>
       {loading ? (
         <div className="p-8 text-center text-white/40">加载中...</div>
       ) : subs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-white/30">
           <Star className="w-16 h-16 mb-4 opacity-30" />
-          <p className="text-lg">{user ? '还没有订阅任何创作者' : '登录后查看订阅'}</p>
+          <p className="text-lg">{user ? '还没有关注任何人' : '登录后查看关注'}</p>
           {!user && <a href="/login" className="mt-4 px-6 py-2 rounded-full bg-[#f472b6] text-white text-sm font-bold">去登录</a>}
           {user && <Link href="/explore" className="mt-3 text-[#f472b6] text-sm hover:underline">去发现创作者</Link>}
         </div>
@@ -60,9 +61,8 @@ export default function SubscriptionsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1"><p className="font-bold text-[15px]">{c.display_name}</p>{c.verified && <span className="text-[#f472b6] text-sm">✓</span>}</div>
-                  <p className="text-[13px] text-white/50">@{c.username} · {c.subscriber_count?.toLocaleString()} 订阅</p>
+                  <p className="text-[13px] text-white/50">@{c.username} · 关注</p>
                 </div>
-                <div className="text-right"><p className="text-[15px] font-bold text-[#f472b6]">${c.subscription_price}/月</p></div>
               </Link>
             );
           })}
